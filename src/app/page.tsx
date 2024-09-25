@@ -1,11 +1,11 @@
-import { Header } from "@/sections/Header";
-import { Hero } from "@/sections/Hero";
-import { LogoTicker } from "@/sections/LogoTicker";
-import { ProductShowcase } from "@/sections/ProductShowcase";
-import { Pricing } from "@/sections/Pricing";
-import { Testimonials } from "@/sections/Testimonials";
-import { CallToAction } from "@/sections/CallToAction";
-import { Footer } from "@/sections/Footer";
+import { Header } from "@/b2bSections/Header";
+import Hero from "@/b2bSections/Hero";
+import { LogoTicker } from "@/b2bSections/LogoTicker";
+import { ProductShowcase } from "@/b2bSections/ProductShowcase";
+import { Pricing } from "@/b2bSections/Pricing";
+import { Testimonials } from "@/b2bSections/Testimonials";
+import { CallToAction } from "@/b2bSections/CallToAction";
+import { Footer } from "@/b2bSections/Footer";
 
 export default function Home() {
   return (
@@ -15,7 +15,6 @@ export default function Home() {
       <LogoTicker />
       <ProductShowcase />
       <Pricing />
-      <Testimonials />
       <CallToAction />
       <Footer />
     </>
