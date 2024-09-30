@@ -7,8 +7,9 @@ import Providers from "@/components/Providers";
 const dmSans = DM_Sans({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Light Saas Landing Page",
-  description: "Template created by Frontend Tribe",
+  title: "OpusList",
+  description:
+    "Plan and schedule your week in minutes with an app designed to make effective time management as easy as possible",
 };
 
 export default function RootLayout({

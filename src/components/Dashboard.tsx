@@ -2,7 +2,9 @@
 
 import React, { useState, useCallback, useEffect } from "react"
 import { Calendar, momentLocalizer, Views } from "react-big-calendar"
+import withDragAndDrop from 'react-big-calendar/lib/addons/dragAndDrop';
 import moment from "moment"
+import { NavigateAction } from "react-big-calendar";
 import { useRouter } from 'next/navigation'
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -52,7 +54,7 @@ interface DashboardProps {
   user: { name: string; id: string }
 }
 
-const CustomToolbar = ({ onNavigate, label }: { onNavigate: (action: string) => void; label: string }) => {
+const CustomToolbar = ({ onNavigate, label }: { onNavigate: (action: NavigateAction) => void; label: string }) => {
   return (
     <div className="flex justify-between items-center mb-4">
       <div>
@@ -118,7 +120,9 @@ const DaySelector = ({ selectedDate, onSelectDate }: { selectedDate: Date; onSel
   )
 }
 
-const TaskComponent = ({ task, onSchedule, onView }: { task: Task; onSchedule: (task: Task) => void; onView: (task: Task) => void }) => {
+import { Trash } from "lucide-react"
+
+const TaskComponent = ({ task, onSchedule, onView, onDelete }: { task: Task; onSchedule: (task: Task) => void; onView: (task: Task) => void; onDelete: (taskId: string) => void }) => {
   const isScheduled = !!task.scheduledTime
 
   return (
@@ -141,7 +145,7 @@ const TaskComponent = ({ task, onSchedule, onView }: { task: Task; onSchedule: (
               )}
             </div>
             {task.scheduledTime && (
-              <div className="mt-2 text-sm text-gray-600 flex items-center">
+              <div className="mt-2 text-sm text-muted-foreground flex items-center">
                 <ClockIcon className="w-4 h-4 mr-1" />
                 Scheduled:{" "}
                 {moment(task.scheduledTime.start).format("MMM D, h:mm A")}
@@ -163,12 +167,21 @@ const TaskComponent = ({ task, onSchedule, onView }: { task: Task; onSchedule: (
                 variant="ghost"
                 size="icon"
                 onClick={() => onSchedule(task)}
-                className="ml-2"
+                className="mr-2"
                 aria-label="Schedule task"
               >
                 <CalendarIcon className="h-4 w-4" />
               </Button>
             )}
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => onDelete(task.id)}
+              className="text-red-500 hover:text-red-700"
+              aria-label="Delete task"
+            >
+              <Trash className="h-4 w-4" />
+            </Button>
           </div>
         </div>
       </CardContent>
@@ -183,7 +196,9 @@ interface Event {
   end: Date;
 }
 
-const CustomEvent = ({ event }: { event: Event }) => {
+import { EventProps } from "react-big-calendar";
+
+const CustomEvent = ({ event }: EventProps<Event>) => {
   const [isSmallEvent, setIsSmallEvent] = useState(false)
   const eventRef = React.useRef(null)
 
@@ -490,6 +505,8 @@ const TaskViewEditModal: React.FC<TaskViewEditModalProps> = ({ isOpen, onClose, 
   )
 }
 
+const DragAndDropCalendar = withDragAndDrop(Calendar);
+
 export default function Dashboard({ initialTasks = [], user }: DashboardProps) {
   const [tasks, setTasks] = useState<Task[]>(initialTasks)
   const [newTask, setNewTask] = useState("")
@@ -502,6 +519,11 @@ export default function Dashboard({ initialTasks = [], user }: DashboardProps) {
   const [currentWeekStart, setCurrentWeekStart] = useState(
     moment().startOf("week").toDate(),
   )
+  const handleDeleteTask = (taskId: string) => {
+    setTasks((prevTasks) => prevTasks.filter((task) => task.id !== taskId))
+    setEvents((prevEvents) => prevEvents.filter((event) => event.id !== taskId))
+  }
+  const [calendarView, setCalendarView] = useState<'week' | 'month'>('week')
 
   const router = useRouter()
 
@@ -692,23 +714,26 @@ export default function Dashboard({ initialTasks = [], user }: DashboardProps) {
     )
   }
 
-  const handleRangeChange = (range: { start: Date }) => {
-    const newWeekStart = moment(range.start).startOf("week").toDate()
+  const handleRangeChange = (range: Date[] | { start: Date; end: Date }) => {
+    const startDate = Array.isArray(range) ? range[0] : range.start
+    const newWeekStart = moment(startDate).startOf("week").toDate()
     setCurrentWeekStart(newWeekStart)
-    setSelectedDate(moment(range.start).toDate())
+    setSelectedDate(moment(startDate).toDate())
   }
 
-  const handleNavigate = (action: "PREV" | "NEXT" | "TODAY") => {
-    const newDate = moment(selectedDate)
+
+  
+  const handleNavigate = (action: NavigateAction) => {
+    let newDate = moment(selectedDate)
     switch (action) {
       case "PREV":
-        newDate.subtract(1, "week")
+        newDate = newDate.subtract(1, "week")
         break
       case "NEXT":
-        newDate.add(1, "week")
+        newDate = newDate.add(1, "week")
         break
       case "TODAY":
-        newDate.set(moment())
+        newDate = moment()
         break
     }
     setSelectedDate(newDate.toDate())
@@ -789,6 +814,7 @@ export default function Dashboard({ initialTasks = [], user }: DashboardProps) {
                   task={task}
                   onSchedule={handleScheduleTask}
                   onView={handleViewTask}
+                  onDelete={handleDeleteTask}
                 />
               ))}
             </div>
@@ -801,43 +827,41 @@ export default function Dashboard({ initialTasks = [], user }: DashboardProps) {
                       task={task}
                       onSchedule={handleScheduleTask}
                       onView={handleViewTask}
+                      onDelete={handleDeleteTask}
                     />
                   ))}
                 </div>
               </TabsContent>
             </Tabs>
           </div>
-          <div className="flex-1 p-6 overflow-hidden">
-            <h1 className="text-3xl font-bold mb-6">Welcome, Shiven</h1>
-            <Calendar
-              localizer={localizer}
-              events={events}
-              startAccessor="start"
-              endAccessor="end"
-              style={{ height: "calc(100vh - 150px)" }}
-              views={["week"]}
-              defaultView={Views.WEEK}
-              min={new Date(0, 0, 0, 0, 0, 0)}
-              max={new Date(0, 0, 0, 23, 59, 59)}
-              step={30}
-              timeslots={2}
-              onEventResize={onEventResize}
-              onEventDrop={onEventDrop}
-              onSelectEvent={handleSelectEvent}
-              onRangeChange={handleRangeChange}
-              onNavigate={handleNavigate}
-              onSelectSlot={handleSelectSlot}
-              selectable={true}
-              date={selectedDate}
-              components={{
-                toolbar: (props) => (
-                  <CustomToolbar {...props} onNavigate={handleNavigate} />
-                ),
-                event: CustomEvent,
-              }}
-              scrollToTime={new Date(0, 0, 0, 5, 0, 0)}
-            />
-          </div>
+            <div className="flex-1 p-6 overflow-hidden">
+              <h1 className="text-3xl font-bold mb-6">Welcome, Shiven</h1>
+              <DragAndDropCalendar
+                localizer={localizer}
+                events={events}
+                startAccessor="start"
+                endAccessor="end"
+                style={{ height: "calc(100vh - 150px)" }}
+                views={["week"]}
+                defaultView={Views.WEEK}
+                min={new Date(0, 0, 0, 0, 0, 0)}
+                max={new Date(0, 0, 0, 23, 59, 59)}
+                step={30}
+                timeslots={2}
+                onEventResize={onEventResize}
+                onEventDrop={onEventDrop}
+                onSelectEvent={handleSelectEvent}
+                onRangeChange={handleRangeChange}
+                onSelectSlot={handleSelectSlot}
+                selectable={true}
+                date={selectedDate}
+                components={{
+                  toolbar: CustomToolbar,
+                  event: CustomEvent,
+                }}
+                scrollToTime={new Date(0, 0, 0, 5, 0, 0)}
+              />
+            </div>
         </div>
         <TaskScheduleModal
           isOpen={isScheduleModalOpen}
