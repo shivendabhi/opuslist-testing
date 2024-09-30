@@ -1,11 +1,10 @@
-import { Header } from "@/b2bSections/Header";
-import Hero from "@/b2bSections/Hero";
+import Header from "@/b2cSections/Header";
+import Hero from "@/b2cSections/Hero";
 import { LogoTicker } from "@/b2bSections/LogoTicker";
-import { ProductShowcase } from "@/b2bSections/ProductShowcase";
-import { Pricing } from "@/b2bSections/Pricing";
-import { Testimonials } from "@/b2bSections/Testimonials";
-import { CallToAction } from "@/b2bSections/CallToAction";
-import { Footer } from "@/b2bSections/Footer";
+import ProductShowcase from "@/b2cSections/ProductShowcase";
+import Pricing from "@/b2cSections/Pricing";
+import CallToAction from "@/b2cSections/CallToAction";
+import Footer from "@/b2cSections/Footer";
 
 export default function Home() {
   return (
