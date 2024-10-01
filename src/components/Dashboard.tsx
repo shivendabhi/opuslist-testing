@@ -42,8 +42,8 @@ const localizer = momentLocalizer(moment)
 interface Task {
   id: string
   content: string
-  priority: number
-  dueDate: Date
+  // priority: number | null
+  dueDate: Date | null
   estimatedTime: number
   scheduledTime: { start: Date; end: Date } | null
   actualTime: number | null
@@ -54,65 +54,138 @@ interface DashboardProps {
   user: { name: string; id: string }
 }
 
-const CustomToolbar = ({ onNavigate, label }: { onNavigate: (action: NavigateAction) => void; label: string }) => {
+import { Switch } from "@/components/ui/switch"
+
+interface ViewToggleProps {
+  view: 'week' | 'month'
+  onViewChange: (view: 'week' | 'month') => void
+}
+const TaskInputForm: React.FC<{ newTask: string; setNewTask: (value: string) => void; addTask: (e: React.FormEvent<HTMLFormElement> | React.MouseEvent<HTMLButtonElement>) => void }> = ({ newTask, setNewTask, addTask }) => {
+  const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      addTask(e as unknown as React.FormEvent<HTMLFormElement>);
+    }
+  };
+
+  return (
+    <form onSubmit={addTask} className="flex mb-4">
+      <Input
+        type="text"
+        value={newTask}
+        onChange={(e) => setNewTask(e.target.value)}
+        onKeyPress={handleKeyPress}
+        placeholder="Add a new task..."
+        className="flex-grow mr-2"
+      />
+      <Button type="submit">
+        Add
+      </Button>
+    </form>
+  );
+};
+
+const ViewToggle: React.FC<ViewToggleProps> = ({ view, onViewChange }) => {
+  return (
+    <div className="flex items-center space-x-2">
+      <Label htmlFor="view-toggle">Weekly</Label>
+      <Switch
+        id="view-toggle"
+        checked={view === 'month'}
+        onCheckedChange={(checked) => onViewChange(checked ? 'month' : 'week')}
+      />
+      <Label htmlFor="view-toggle">Monthly</Label>
+    </div>
+  )
+}
+
+const CustomToolbar = ({ onNavigate, label, view, onViewChange }: { 
+  onNavigate: (newDate: Date, view: typeof Views, action: NavigateAction) => void
+  label: string
+  view: 'week' | 'month'
+  onViewChange: (view: 'week' | 'month') => void
+  }) => {
   return (
     <div className="flex justify-between items-center mb-4">
       <div>
         <Button
-          onClick={() => onNavigate("TODAY")}
+          onClick={() => onNavigate(new Date(), Views.WEEK, "TODAY")}
           variant="outline"
           className="mr-2"
         >
           Today
         </Button>
         <Button
-          onClick={() => onNavigate("PREV")}
+          onClick={() => onNavigate(new Date(), Views.WEEK, "PREV")}
           variant="outline"
           className="mr-2"
         >
           Back
         </Button>
-        <Button onClick={() => onNavigate("NEXT")} variant="outline">
+        <Button onClick={() => onNavigate(new Date(), Views.WEEK, "NEXT")} variant="outline">
           Next
         </Button>
       </div>
-      <span className="text-lg font-semibold">{label}</span>
+      {/* <ViewToggle view={view} onViewChange={onViewChange} /> */}
+      <span className="text-lg font-semibold">
+        {view === 'week' ? label : moment(label.split(' – ')[0]).format('MMMM YYYY')}
+      </span>
     </div>
   )
 }
 
-const DaySelector = ({ selectedDate, onSelectDate }: { selectedDate: Date; onSelectDate: (date: Date) => void }) => {
-  const handlePrevDay = () => {
-    onSelectDate(moment(selectedDate).subtract(1, "day").toDate())
+interface DaySelectorProps {
+  selectedDate: Date
+  onSelectDate: (date: Date) => void
+  view: 'daily' | 'weekly'
+}
+
+const DaySelector: React.FC<DaySelectorProps> = ({ selectedDate, onSelectDate, view }) => {
+  const handlePrev = () => {
+    onSelectDate(moment(selectedDate).subtract(view === 'daily' ? 1 : 7, "day").toDate())
   }
 
-  const handleNextDay = () => {
-    onSelectDate(moment(selectedDate).add(1, "day").toDate())
+  const handleNext = () => {
+    onSelectDate(moment(selectedDate).add(view === 'daily' ? 1 : 7, "day").toDate())
   }
+
+  const formatDate = () => {
+    if (view === 'daily') {
+      return {
+        main: moment(selectedDate).format("dddd"),
+        sub: moment(selectedDate).format("MMMM D, YYYY")
+      }
+    } else {
+      const weekStart = moment(selectedDate).startOf('week')
+      const weekEnd = moment(selectedDate).endOf('week')
+      return {
+        main: `Week of ${weekStart.format("MMM D")}`,
+        sub: `${weekStart.format("MMM D")} - ${weekEnd.format("MMM D, YYYY")}`
+      }
+    }
+  }
+
+  const dateFormat = formatDate()
 
   return (
     <div className="flex justify-between items-center mb-4">
       <Button
         variant="ghost"
         size="icon"
-        onClick={handlePrevDay}
-        aria-label="Previous day"
+        onClick={handlePrev}
+        aria-label={view === 'daily' ? "Previous day" : "Previous week"}
       >
         <ChevronLeftIcon className="h-4 w-4" />
       </Button>
       <div className="text-center">
-        <div className="text-lg font-semibold">
-          {moment(selectedDate).format("dddd")}
-        </div>
-        <div className="text-sm text-gray-500">
-          {moment(selectedDate).format("MMMM D, YYYY")}
-        </div>
+        <div className="text-lg font-semibold">{dateFormat.main}</div>
+        <div className="text-sm text-muted-foreground">{dateFormat.sub}</div>
       </div>
       <Button
         variant="ghost"
         size="icon"
-        onClick={handleNextDay}
-        aria-label="Next day"
+        onClick={handleNext}
+        aria-label={view === 'daily' ? "Next day" : "Next week"}
       >
         <ChevronRightIcon className="h-4 w-4" />
       </Button>
@@ -132,10 +205,12 @@ const TaskComponent = ({ task, onSchedule, onView, onDelete }: { task: Task; onS
           <div className="flex-grow">
             <p className="font-medium">{task.content}</p>
             <div className="flex flex-wrap gap-2 mt-2">
-              <Badge variant="secondary">Priority: {task.priority}</Badge>
-              <Badge variant="outline">
-                Due: {moment(task.dueDate).format("MMM D")}
-              </Badge>
+              {/* <Badge variant="secondary">Priority: {task.priority}</Badge> */}
+              {task.dueDate && (
+                <Badge variant="outline">
+                  Due: {moment(task.dueDate).format("MMM D")}
+                </Badge>
+              )}
               {task.actualTime ? (
                 <Badge variant="secondary" className="bg-green-500">
                   Actual: {task.actualTime}h
@@ -144,11 +219,11 @@ const TaskComponent = ({ task, onSchedule, onView, onDelete }: { task: Task; onS
                 <Badge>Est: {task.estimatedTime}h</Badge>
               )}
             </div>
-            {task.scheduledTime && (
+            {isScheduled && (
               <div className="mt-2 text-sm text-muted-foreground flex items-center">
                 <ClockIcon className="w-4 h-4 mr-1" />
                 Scheduled:{" "}
-                {moment(task.scheduledTime.start).format("MMM D, h:mm A")}
+                {moment(task.scheduledTime!.start).format("MMM D, h:mm A")}
               </div>
             )}
           </div>
@@ -342,7 +417,7 @@ const TaskViewEditModal: React.FC<TaskViewEditModalProps> = ({ isOpen, onClose, 
       setDueDate(task.dueDate ? moment(task.dueDate).format("YYYY-MM-DD") : "")
       if (task.scheduledTime) {
         setStartTime(
-          moment(task.scheduledTime.start).format("YYYY-MM-DDTHH:mm"),
+          moment(task.scheduledTime.start).format("YYYY-MM-DDTHH:mm")
         )
         setEndTime(moment(task.scheduledTime.end).format("YYYY-MM-DDTHH:mm"))
       }
@@ -350,32 +425,34 @@ const TaskViewEditModal: React.FC<TaskViewEditModalProps> = ({ isOpen, onClose, 
   }, [task])
 
   const handleUpdate = () => {
-      const updatedTask: Partial<Task> = {
-        content,
-        estimatedTime: parseFloat(estimatedTime.toString()),
-        dueDate: moment(dueDate).toDate(),
-      }
-      if (startTime && endTime) {
-        updatedTask.scheduledTime = {
-          start: moment(startTime).toDate(),
-          end: moment(endTime).toDate(),
-        }
-      }
-      if (task) {
-        onUpdate(task.id, updatedTask)
-      }
-      setIsEditing(false)
+    const updatedTask: Partial<Task> = {
+      content,
+      estimatedTime: parseFloat(estimatedTime.toString()),
+      dueDate: dueDate ? moment(dueDate).toDate() : null,
     }
-
-  const calculatePriority = () => {
-    const daysUntilDue = moment(dueDate).diff(moment(), "days")
-    const estimatedTimeNum = parseFloat(estimatedTime.toString())
-
-    if (daysUntilDue <= 1 && estimatedTimeNum > 4) return 100
-    if (daysUntilDue <= 3 && estimatedTimeNum > 2) return 75
-    if (daysUntilDue <= 7) return 50
-    return 25
+    if (startTime && endTime) {
+      updatedTask.scheduledTime = {
+        start: moment(startTime).toDate(),
+        end: moment(endTime).toDate(),
+      }
+    }
+    if (task) {
+      onUpdate(task.id, updatedTask)
+    }
+    setIsEditing(false)
   }
+
+    // const calculatePriority = (task: Task) => {
+    //   if (!task.dueDate) return null; // Default priority if no due date is set
+    
+    //   const daysUntilDue = moment(task.dueDate).diff(moment(), "days")
+    //   const estimatedTimeNum = task.estimatedTime
+    
+    //   if (daysUntilDue <= 1 && estimatedTimeNum > 4) return 100
+    //   if (daysUntilDue <= 3 && estimatedTimeNum > 2) return 75
+    //   if (daysUntilDue <= 7) return 50
+    //   return 25
+    // }
 
   if (!task) return null
 
@@ -401,14 +478,14 @@ const TaskViewEditModal: React.FC<TaskViewEditModalProps> = ({ isOpen, onClose, 
               <p className="col-span-3">{task.content}</p>
             )}
           </div>
-          <div className="grid grid-cols-4 items-center gap-4">
+          {/* <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="task-priority" className="text-right">
               Priority
             </Label>
             <p className="col-span-3">
-              {isEditing ? calculatePriority() : task.priority}
+              {isEditing ? calculatePriority(task) : task.priority}
             </p>
-          </div>
+          </div> */}
           <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="task-estimated-time" className="text-right">
               Estimated Time (hours)
@@ -512,12 +589,16 @@ export default function Dashboard({ initialTasks = [], user }: DashboardProps) {
   const [newTask, setNewTask] = useState("")
   const [events, setEvents] = useState<Event[]>([])
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
+  const [taskListView, setTaskListView] = useState<'daily' | 'weekly'>('daily');
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false)
   const [isViewEditModalOpen, setIsViewEditModalOpen] = useState(false)
   const [activeView, setActiveView] = useState("dashboard")
   const [selectedDate, setSelectedDate] = useState(new Date())
   const [currentWeekStart, setCurrentWeekStart] = useState(
     moment().startOf("week").toDate(),
+  )
+  const [currentMonthStart, setCurrentMonthStart] = useState(
+    moment().startOf("month").toDate(),
   )
   const handleDeleteTask = (taskId: string) => {
     setTasks((prevTasks) => prevTasks.filter((task) => task.id !== taskId))
@@ -527,25 +608,26 @@ export default function Dashboard({ initialTasks = [], user }: DashboardProps) {
 
   const router = useRouter()
 
-  useEffect(() => {
-    // Convert tasks to events
-    const initialEvents = tasks.map(task => ({
+ useEffect(() => {
+  // Convert only scheduled tasks to events
+  const scheduledEvents = tasks
+    .filter(task => task.scheduledTime !== null)
+    .map(task => ({
       id: task.id,
       title: task.content,
-      start: task.scheduledTime?.start || task.dueDate,
-      end: task.scheduledTime?.end || moment(task.dueDate).add(1, 'hour').toDate(),
+      start: task.scheduledTime!.start,
+      end: task.scheduledTime!.end,
     }))
-    setEvents(initialEvents)
-  }, [tasks])
-
-  const addTask = () => {
+  setEvents(scheduledEvents)
+}, [tasks])
+const addTask = (e: React.FormEvent<HTMLFormElement> | React.MouseEvent<HTMLButtonElement>) => {
+    e.preventDefault();
     if (newTask.trim()) {
       const task: Task = {
         id: Date.now().toString(),
         content: newTask,
-        priority: 25, // Default priority
-        dueDate: moment(selectedDate).toDate(),
-        estimatedTime: 1, // Default estimated time
+        dueDate: selectedDate,
+        estimatedTime: 1,
         scheduledTime: null,
         actualTime: null,
       }
@@ -553,7 +635,6 @@ export default function Dashboard({ initialTasks = [], user }: DashboardProps) {
       setNewTask("")
     }
   }
-
   const handleScheduleTask = (task: Task) => {
     setSelectedTask(task)
     setIsScheduleModalOpen(true)
@@ -579,15 +660,15 @@ export default function Dashboard({ initialTasks = [], user }: DashboardProps) {
     return Math.round(duration.asHours() * 10) / 10
   }
 
-  const calculatePriority = (task: Task) => {
-    const daysUntilDue = moment(task.dueDate).diff(moment(), "days")
-    const estimatedTimeNum = task.estimatedTime
+  // const calculatePriority = (task: Task) => {
+  //   const daysUntilDue = moment(task.dueDate).diff(moment(), "days")
+  //   const estimatedTimeNum = task.estimatedTime
 
-    if (daysUntilDue <= 1 && estimatedTimeNum > 4) return 100
-    if (daysUntilDue <= 3 && estimatedTimeNum > 2) return 75
-    if (daysUntilDue <= 7) return 50
-    return 25
-  }
+  //   if (daysUntilDue <= 1 && estimatedTimeNum > 4) return 100
+  //   if (daysUntilDue <= 3 && estimatedTimeNum > 2) return 75
+  //   if (daysUntilDue <= 7) return 50
+  //   return 25
+  // }
 
   const handleTaskScheduled = (taskId: string, start: Date, end: Date) => {
     const actualTime = calculateActualTime(start, end)
@@ -599,13 +680,14 @@ export default function Dashboard({ initialTasks = [], user }: DashboardProps) {
             scheduledTime: { start, end },
             actualTime,
           }
-          updatedTask.priority = calculatePriority(updatedTask)
+          // updatedTask.priority = calculatePriority(updatedTask)
           return updatedTask
         }
         return task
       })
     )
-
+  
+    // Add the event to the calendar only when explicitly scheduled
     const taskToSchedule = tasks.find((t) => t.id === taskId)
     if (taskToSchedule) {
       const newEvent = {
@@ -629,7 +711,7 @@ export default function Dashboard({ initialTasks = [], user }: DashboardProps) {
               updatedTask.scheduledTime.end,
             )
           }
-          updatedTask.priority = calculatePriority(updatedTask)
+          // updatedTask.priority = calculatePriority(updatedTask)
           return updatedTask
         }
         return task
@@ -664,7 +746,7 @@ export default function Dashboard({ initialTasks = [], user }: DashboardProps) {
             scheduledTime: { start, end },
             actualTime,
           }
-          updatedTask.priority = calculatePriority(updatedTask)
+          // updatedTask.priority = calculatePriority(updatedTask)
           return updatedTask
         }
         return task
@@ -680,6 +762,19 @@ export default function Dashboard({ initialTasks = [], user }: DashboardProps) {
       })
     )
   }
+  const getFilteredTasks = () => {
+    if (taskListView === 'daily') {
+      return tasks.filter(task => 
+        task.dueDate && moment(task.dueDate).isSame(selectedDate, 'day')
+      );
+    } else {
+      const weekStart = moment(selectedDate).startOf('week');
+      const weekEnd = moment(selectedDate).endOf('week');
+      return tasks.filter(task => 
+        task.dueDate && moment(task.dueDate).isBetween(weekStart, weekEnd, 'day', '[]')
+      );
+    }
+  };
 
   const onEventResize = useCallback(
     ({ event, start, end }: { event: Event; start: Date; end: Date }) => {
@@ -709,9 +804,16 @@ export default function Dashboard({ initialTasks = [], user }: DashboardProps) {
   const getDueTasks = (date: Date) => {
     return tasks.filter(
       (task) =>
-        moment(task.dueDate).format("YYYY-MM-DD") ===
-        moment(date).format("YYYY-MM-DD")
+        task.dueDate && moment(task.dueDate).isSame(date, 'day')
     )
+  }
+
+  const getWeekTasks = (date: Date) => {
+    const weekStart = moment(date).startOf('week');
+    const weekEnd = moment(date).endOf('week');
+    return tasks.filter(task => 
+      task.dueDate && moment(task.dueDate).isBetween(weekStart, weekEnd, 'day', '[]')
+    );
   }
 
   const handleRangeChange = (range: Date[] | { start: Date; end: Date }) => {
@@ -723,22 +825,33 @@ export default function Dashboard({ initialTasks = [], user }: DashboardProps) {
 
 
   
-  const handleNavigate = (action: NavigateAction) => {
-    let newDate = moment(selectedDate)
+  const handleNavigate = (newDate: Date, view: typeof Views, action: NavigateAction) => {
+    let date = moment(selectedDate); // Use the current selectedDate as the reference point
+  
     switch (action) {
       case "PREV":
-        newDate = newDate.subtract(1, "week")
-        break
+        date = calendarView === 'week' ? date.subtract(1, "week") : date.subtract(1, "month");
+        break;
       case "NEXT":
-        newDate = newDate.add(1, "week")
-        break
+        date = calendarView === 'week' ? date.add(1, "week") : date.add(1, "month");
+        break;
       case "TODAY":
-        newDate = moment()
-        break
+        date = moment();
+        break;
+      default:
+        // If it's a date object (e.g., when clicking on a specific date), use that
+        date = moment(newDate);
     }
-    setSelectedDate(newDate.toDate())
-    setCurrentWeekStart(newDate.startOf("week").toDate())
-  }
+  
+    setSelectedDate(date.toDate());
+  
+    // Update currentWeekStart or currentMonthStart based on the view
+    if (calendarView === 'week') {
+      setCurrentWeekStart(date.startOf('week').toDate());
+    } else {
+      setCurrentMonthStart(date.startOf('month').toDate());
+    }
+  };
 
   const handleSelectSlot = useCallback(({ start }: { start: Date }) => {
     setSelectedDate(start)
@@ -780,35 +893,33 @@ export default function Dashboard({ initialTasks = [], user }: DashboardProps) {
           </div>
         </aside>
         <div className="flex-1 flex">
-        <div className="w-1/4 bg-gray-100 p-6 overflow-y-auto">
-        <h2 className="text-2xl font-semibold mb-4">Tasks</h2>
-        <DaySelector
-          selectedDate={selectedDate}
-          onSelectDate={setSelectedDate}
-        />
-        <Tabs defaultValue="tasks" className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="tasks">Tasks</TabsTrigger>
-            <TabsTrigger value="due">Due Today</TabsTrigger>
-          </TabsList>
-          <TabsContent value="tasks">
-            <div className="flex mb-4">
-              <Input
-                type="text"
-                value={newTask}
-                onChange={(e) => setNewTask(e.target.value)}
-                placeholder="Add a new task..."
-                className="flex-grow mr-2"
-              />
-              <Button
-                onClick={addTask}
-                className="bg-primary text-primary-foreground"
-              >
-                Add
-              </Button>
+        <div className="w-1/4 bg-muted/20 p-6 overflow-y-auto">
+          <div className="mb-4">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-2xl font-semibold">Tasks</h2>
+              <div className="flex space-x-2">
+                <Button
+                  variant={taskListView === 'daily' ? 'default' : 'outline'}
+                  onClick={() => setTaskListView('daily')}
+                >
+                  Daily
+                </Button>
+                <Button
+                  variant={taskListView === 'weekly' ? 'default' : 'outline'}
+                  onClick={() => setTaskListView('weekly')}
+                >
+                  Weekly
+                </Button>
+              </div>
             </div>
+            <DaySelector
+              selectedDate={selectedDate}
+              onSelectDate={setSelectedDate}
+              view={taskListView}
+            />
+            <TaskInputForm newTask={newTask} setNewTask={setNewTask} addTask={addTask} />
             <div>
-              {tasks.map((task) => (
+              {getFilteredTasks().map((task) => (
                 <TaskComponent
                   key={task.id}
                   task={task}
@@ -818,49 +929,47 @@ export default function Dashboard({ initialTasks = [], user }: DashboardProps) {
                 />
               ))}
             </div>
-          </TabsContent>
-              <TabsContent value="due">
-                <div>
-                  {getDueTasks(selectedDate).map((task) => (
-                    <TaskComponent
-                      key={task.id}
-                      task={task}
-                      onSchedule={handleScheduleTask}
-                      onView={handleViewTask}
-                      onDelete={handleDeleteTask}
-                    />
-                  ))}
-                </div>
-              </TabsContent>
-            </Tabs>
+          </div>  
           </div>
             <div className="flex-1 p-6 overflow-hidden">
               <h1 className="text-3xl font-bold mb-6">Welcome, Shiven</h1>
               <DragAndDropCalendar
-                localizer={localizer}
-                events={events}
-                startAccessor="start"
-                endAccessor="end"
-                style={{ height: "calc(100vh - 150px)" }}
-                views={["week"]}
-                defaultView={Views.WEEK}
-                min={new Date(0, 0, 0, 0, 0, 0)}
-                max={new Date(0, 0, 0, 23, 59, 59)}
-                step={30}
-                timeslots={2}
-                onEventResize={onEventResize}
-                onEventDrop={onEventDrop}
-                onSelectEvent={handleSelectEvent}
-                onRangeChange={handleRangeChange}
-                onSelectSlot={handleSelectSlot}
-                selectable={true}
-                date={selectedDate}
-                components={{
-                  toolbar: CustomToolbar,
-                  event: CustomEvent,
-                }}
-                scrollToTime={new Date(0, 0, 0, 5, 0, 0)}
-              />
+  localizer={localizer}
+  events={events}
+  startAccessor="start"
+  endAccessor="end"
+  style={{ height: "calc(100vh - 150px)" }}
+  views={[Views.WEEK, Views.MONTH]}
+  view={taskListView === 'weekly' ? Views.MONTH : Views.WEEK}
+  onView={(newView) => {
+    setTaskListView(newView === Views.MONTH ? 'weekly' : 'daily');
+  }}
+  defaultView={Views.WEEK}
+  min={new Date(0, 0, 0, 0, 0, 0)}
+  max={new Date(0, 0, 0, 23, 59, 59)}
+  step={30}
+  timeslots={2}
+  onEventResize={onEventResize}
+  onEventDrop={onEventDrop}
+  onSelectEvent={handleSelectEvent}
+  onRangeChange={handleRangeChange}
+  onNavigate={handleNavigate}
+  onSelectSlot={handleSelectSlot}
+  selectable={true}
+  date={selectedDate}
+  components={{
+    toolbar: (props) => (
+      <CustomToolbar 
+        {...props} 
+        onNavigate={handleNavigate}
+        view={taskListView === 'weekly' ? 'month' : 'week'}
+        onViewChange={(newView) => setTaskListView(newView === 'month' ? 'weekly' : 'daily')}
+      />
+    ),
+    event: CustomEvent,
+  }}
+  scrollToTime={new Date(0, 0, 0, 5, 0, 0)}
+/>
             </div>
         </div>
         <TaskScheduleModal
