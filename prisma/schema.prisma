@@ -22,4 +22,25 @@ model User {
   stripeSubscriptionId String? @unique @map(name:"stripeSubscriptionId")
   stripePriceId String? @unique @map(name:"stripePriceId")
   stripeCurrentPeriodEnd DateTime? @map(name:"stripeCurrentPeriodEnd")
-  }
+
+  tasks Task[]
+}
+
+model Task {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+  content String
+  dueDate DateTime?
+  estimatedTime Int
+  scheduledTime ScheduledTime?
+  actualTime Int?
+  userId String
+  user User @relation(fields: [userId], references: [id])
+}
+
+model ScheduledTime {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+  start DateTime
+  end DateTime
+  taskId String @unique @db.ObjectId
+  task Task @relation(fields: [taskId], references: [id])
+}

@@ -1,4 +1,5 @@
 "use client"
+import { LogoutLink } from '@kinde-oss/kinde-auth-nextjs/server'
 
 import React, { useState, useCallback, useEffect } from "react"
 import { Calendar, momentLocalizer, Views } from "react-big-calendar"
@@ -28,6 +29,7 @@ import {
   ChevronLeftIcon,
   ChevronRightIcon,
   LogOut,
+  Trash,
 } from "lucide-react"
 import {
   Tooltip,
@@ -193,31 +195,48 @@ const DaySelector: React.FC<DaySelectorProps> = ({ selectedDate, onSelectDate, v
   )
 }
 
-import { Trash } from "lucide-react"
 
-const TaskComponent = ({ task, onSchedule, onView, onDelete }: { task: Task; onSchedule: (task: Task) => void; onView: (task: Task) => void; onDelete: (taskId: string) => void }) => {
-  const isScheduled = !!task.scheduledTime
+const TaskComponent = ({ task, onSchedule, onView, onDelete, selectedDate }: { 
+  task: Task; 
+  onSchedule: (task: Task) => void; 
+  onView: (task: Task) => void; 
+  onDelete: (taskId: string) => void;
+  selectedDate: Date;
+}) => {
+  const isScheduled = !!task.scheduledTime;
+  const isDueToday = task.dueDate && moment(task.dueDate).isSame(selectedDate, 'day');
+  const isScheduledToday = task.scheduledTime && moment(task.scheduledTime.start).isSame(selectedDate, 'day');
+
+  const getBackgroundColor = () => {
+    if (isDueToday && !isScheduledToday) return 'bg-blue-50';
+    if (isScheduledToday && !isDueToday) return 'bg-white';
+    if (isScheduledToday && isDueToday) return 'bg-white';
+    return 'bg-white';
+  };
+
+  const showActualTime = isScheduledToday || !isDueToday;
 
   return (
-    <Card className="mb-2">
+    <Card className={`mb-2 ${getBackgroundColor()}`}>
       <CardContent className="p-4">
         <div className="flex justify-between items-start">
           <div className="flex-grow">
             <p className="font-medium">{task.content}</p>
             <div className="flex flex-wrap gap-2 mt-2">
-              {/* <Badge variant="secondary">Priority: {task.priority}</Badge> */}
               {task.dueDate && (
                 <Badge variant="outline">
                   Due: {moment(task.dueDate).format("MMM D")}
                 </Badge>
               )}
-              {task.actualTime ? (
-                <Badge variant="secondary" className="bg-green-500">
-                  Actual: {task.actualTime}h
-                </Badge>
-              ) : (
-                <Badge>Est: {task.estimatedTime}h</Badge>
-              )}
+              {showActualTime ? (
+                task.actualTime ? (
+                  <Badge variant="secondary" className="bg-green-500">
+                    Actual: {task.actualTime}h
+                  </Badge>
+                ) : (
+                  <Badge>Est: {task.estimatedTime}h</Badge>
+                )
+              ) : null}
             </div>
             {isScheduled && (
               <div className="mt-2 text-sm text-muted-foreground flex items-center">
@@ -764,15 +783,30 @@ const addTask = (e: React.FormEvent<HTMLFormElement> | React.MouseEvent<HTMLButt
   }
   const getFilteredTasks = () => {
     if (taskListView === 'daily') {
-      return tasks.filter(task => 
-        task.dueDate && moment(task.dueDate).isSame(selectedDate, 'day')
+      const dueDate = moment(selectedDate).startOf('day');
+      const dueTasks = tasks.filter(task => 
+        task.dueDate && moment(task.dueDate).isSame(dueDate, 'day')
       );
+      const scheduledTasks = tasks.filter(task => 
+        task.scheduledTime && moment(task.scheduledTime.start).isSame(dueDate, 'day')
+      );
+      
+      // Combine due tasks and scheduled tasks, removing duplicates
+      return [...new Set([...dueTasks, ...scheduledTasks])];
     } else {
       const weekStart = moment(selectedDate).startOf('week');
       const weekEnd = moment(selectedDate).endOf('week');
-      return tasks.filter(task => 
-        task.dueDate && moment(task.dueDate).isBetween(weekStart, weekEnd, 'day', '[]')
+      const weekTasks = tasks.filter(task => 
+        (task.dueDate && moment(task.dueDate).isBetween(weekStart, weekEnd, 'day', '[]')) ||
+        (task.scheduledTime && moment(task.scheduledTime.start).isBetween(weekStart, weekEnd, 'day', '[]'))
       );
+      
+      // Sort tasks by due date or scheduled date
+      return weekTasks.sort((a, b) => {
+        const dateA = a.dueDate || (a.scheduledTime && a.scheduledTime.start) || new Date();
+        const dateB = b.dueDate || (b.scheduledTime && b.scheduledTime.start) || new Date();
+        return moment(dateA).diff(moment(dateB));
+      });
     }
   };
 
@@ -802,11 +836,19 @@ const addTask = (e: React.FormEvent<HTMLFormElement> | React.MouseEvent<HTMLButt
   )
 
   const getDueTasks = (date: Date) => {
-    return tasks.filter(
-      (task) =>
-        task.dueDate && moment(task.dueDate).isSame(date, 'day')
-    )
-  }
+    const dueDate = moment(date).startOf('day');
+    const dueTasks = tasks.filter(task => 
+      task.dueDate && moment(task.dueDate).isSame(dueDate, 'day')
+    );
+    const scheduledTasks = tasks.filter(task => 
+      task.scheduledTime && moment(task.scheduledTime.start).isSame(dueDate, 'day')
+    );
+    
+    // Combine due tasks and scheduled tasks, removing duplicates
+    const combinedTasks = [...new Set([...dueTasks, ...scheduledTasks])];
+    
+    return combinedTasks;
+  };
 
   const getWeekTasks = (date: Date) => {
     const weekStart = moment(date).startOf('week');
@@ -826,30 +868,26 @@ const addTask = (e: React.FormEvent<HTMLFormElement> | React.MouseEvent<HTMLButt
 
   
   const handleNavigate = (newDate: Date, view: typeof Views, action: NavigateAction) => {
-    let date = moment(selectedDate); // Use the current selectedDate as the reference point
+    let date = moment(selectedDate);
   
     switch (action) {
       case "PREV":
-        date = calendarView === 'week' ? date.subtract(1, "week") : date.subtract(1, "month");
+        date = taskListView === 'daily' ? date.subtract(1, "day") : date.subtract(1, "week");
         break;
       case "NEXT":
-        date = calendarView === 'week' ? date.add(1, "week") : date.add(1, "month");
+        date = taskListView === 'daily' ? date.add(1, "day") : date.add(1, "week");
         break;
       case "TODAY":
         date = moment();
         break;
       default:
-        // If it's a date object (e.g., when clicking on a specific date), use that
         date = moment(newDate);
     }
   
     setSelectedDate(date.toDate());
   
-    // Update currentWeekStart or currentMonthStart based on the view
-    if (calendarView === 'week') {
+    if (taskListView === 'weekly') {
       setCurrentWeekStart(date.startOf('week').toDate());
-    } else {
-      setCurrentMonthStart(date.startOf('month').toDate());
     }
   };
 
@@ -871,7 +909,7 @@ const addTask = (e: React.FormEvent<HTMLFormElement> | React.MouseEvent<HTMLButt
               <LayoutDashboardIcon className="h-6 w-6" />
               <span className="sr-only">Dashboard</span>
             </Button>
-            <Button
+            {/* <Button
               variant="ghost"
               size="icon"
               onClick={() => setActiveView("calendar")}
@@ -879,17 +917,22 @@ const addTask = (e: React.FormEvent<HTMLFormElement> | React.MouseEvent<HTMLButt
             >
               <CalendarIcon className="h-6 w-6" />
               <span className="sr-only">Calendar</span>
-            </Button>
+            </Button> */}
           </div>
           <div className="flex flex-col items-center space-y-4">
-            <Button variant="ghost" size="icon" className="rounded-full">
+            {/* <Button variant="ghost" size="icon" className="rounded-full">
               <SettingsIcon className="h-6 w-6" />
               <span className="sr-only">Settings</span>
-            </Button>
-            <Button variant="ghost" size="icon" className="rounded-full" /*onClick={}*/>
+            </Button> */}
+            <a href="/api/auth/logout" >
+            <Button variant="ghost" size="icon" className="rounded-full" >
+              
               <LogOut className="h-6 w-6" />
-              <span className="sr-only">Logout</span>
+              <span className="sr-only">
+                Logout
+                </span>
             </Button>
+            </a>
           </div>
         </aside>
         <div className="flex-1 flex">
@@ -926,64 +969,65 @@ const addTask = (e: React.FormEvent<HTMLFormElement> | React.MouseEvent<HTMLButt
                   onSchedule={handleScheduleTask}
                   onView={handleViewTask}
                   onDelete={handleDeleteTask}
+                  selectedDate={selectedDate}
                 />
               ))}
             </div>
           </div>  
-          </div>
-            <div className="flex-1 p-6 overflow-hidden">
-              <h1 className="text-3xl font-bold mb-6">Welcome, Shiven</h1>
-              <DragAndDropCalendar
-  localizer={localizer}
-  events={events}
-  startAccessor="start"
-  endAccessor="end"
-  style={{ height: "calc(100vh - 150px)" }}
-  views={[Views.WEEK, Views.MONTH]}
-  view={taskListView === 'weekly' ? Views.MONTH : Views.WEEK}
-  onView={(newView) => {
-    setTaskListView(newView === Views.MONTH ? 'weekly' : 'daily');
-  }}
-  defaultView={Views.WEEK}
-  min={new Date(0, 0, 0, 0, 0, 0)}
-  max={new Date(0, 0, 0, 23, 59, 59)}
-  step={30}
-  timeslots={2}
-  onEventResize={onEventResize}
-  onEventDrop={onEventDrop}
-  onSelectEvent={handleSelectEvent}
-  onRangeChange={handleRangeChange}
-  onNavigate={handleNavigate}
-  onSelectSlot={handleSelectSlot}
-  selectable={true}
-  date={selectedDate}
-  components={{
-    toolbar: (props) => (
-      <CustomToolbar 
-        {...props} 
-        onNavigate={handleNavigate}
-        view={taskListView === 'weekly' ? 'month' : 'week'}
-        onViewChange={(newView) => setTaskListView(newView === 'month' ? 'weekly' : 'daily')}
-      />
-    ),
-    event: CustomEvent,
-  }}
-  scrollToTime={new Date(0, 0, 0, 5, 0, 0)}
-/>
-            </div>
         </div>
-        <TaskScheduleModal
-          isOpen={isScheduleModalOpen}
-          onClose={handleCloseScheduleModal}
-          task={selectedTask}
-          onSchedule={handleTaskScheduled}
-        />
-        <TaskViewEditModal
-          isOpen={isViewEditModalOpen}
-          onClose={handleCloseViewEditModal}
-          task={selectedTask}
-          onUpdate={handleTaskUpdate}
-        />
+        <div className="flex-1 p-6 overflow-hidden">
+          <h1 className="text-3xl font-bold mb-6">Welcome, Shiven</h1>
+          <DragAndDropCalendar
+            localizer={localizer}
+            events={events}
+            startAccessor="start"
+            endAccessor="end"
+            style={{ height: "calc(100vh - 150px)" }}
+            views={[Views.WEEK, Views.MONTH]}
+            view={taskListView === 'weekly' ? Views.MONTH : Views.WEEK}
+            onView={(newView) => {
+              setTaskListView(newView === Views.MONTH ? 'weekly' : 'daily');
+            }}
+            defaultView={Views.WEEK}
+            min={new Date(0, 0, 0, 0, 0, 0)}
+            max={new Date(0, 0, 0, 23, 59, 59)}
+            step={10}
+            timeslots={6}
+            onEventResize={onEventResize}
+            onEventDrop={onEventDrop}
+            onSelectEvent={handleSelectEvent}
+            onRangeChange={handleRangeChange}
+            onNavigate={handleNavigate}
+            onSelectSlot={handleSelectSlot}
+            selectable={true}
+            date={selectedDate}
+            components={{
+              toolbar: (props) => (
+                <CustomToolbar 
+                  {...props} 
+                  onNavigate={handleNavigate}
+                  view={taskListView === 'weekly' ? 'month' : 'week'}
+                  onViewChange={(newView) => setTaskListView(newView === 'month' ? 'weekly' : 'daily')}
+                />
+              ),
+              event: CustomEvent,
+            }}
+            scrollToTime={new Date(0, 0, 0, 5, 0, 0)}
+          />
+        </div>
       </div>
+      <TaskScheduleModal
+        isOpen={isScheduleModalOpen}
+        onClose={handleCloseScheduleModal}
+        task={selectedTask}
+        onSchedule={handleTaskScheduled}
+      />
+      <TaskViewEditModal
+        isOpen={isViewEditModalOpen}
+        onClose={handleCloseViewEditModal}
+        task={selectedTask}
+        onUpdate={handleTaskUpdate}
+      />
+    </div>
   )
 }
