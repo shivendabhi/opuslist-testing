@@ -1,5 +1,6 @@
 "use client"
 import { LogoutLink } from '@kinde-oss/kinde-auth-nextjs/server'
+import { trpc } from '@/app/_trpc/client'
 
 import React, { useState, useCallback, useEffect } from "react"
 import { Calendar, momentLocalizer, Views } from "react-big-calendar"
@@ -45,7 +46,7 @@ interface Task {
   id: string
   content: string
   // priority: number | null
-  dueDate: Date | null
+  dueDate: Date | null | undefined
   estimatedTime: number
   scheduledTime: { start: Date; end: Date } | null
   actualTime: number | null
@@ -603,57 +604,71 @@ const TaskViewEditModal: React.FC<TaskViewEditModalProps> = ({ isOpen, onClose, 
 
 const DragAndDropCalendar = withDragAndDrop(Calendar);
 
-export default function Dashboard({ initialTasks = [], user }: DashboardProps) {
-  const [tasks, setTasks] = useState<Task[]>(initialTasks)
+export default function Dashboard() {
+  const [tasks, setTasks] = useState<Task[]>([])
   const [newTask, setNewTask] = useState("")
   const [events, setEvents] = useState<Event[]>([])
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
-  const [taskListView, setTaskListView] = useState<'daily' | 'weekly'>('daily');
+  const [taskListView, setTaskListView] = useState<'daily' | 'weekly'>('daily')
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false)
   const [isViewEditModalOpen, setIsViewEditModalOpen] = useState(false)
   const [activeView, setActiveView] = useState("dashboard")
   const [selectedDate, setSelectedDate] = useState(new Date())
-  const [currentWeekStart, setCurrentWeekStart] = useState(
-    moment().startOf("week").toDate(),
-  )
-  const [currentMonthStart, setCurrentMonthStart] = useState(
-    moment().startOf("month").toDate(),
-  )
-  const handleDeleteTask = (taskId: string) => {
-    setTasks((prevTasks) => prevTasks.filter((task) => task.id !== taskId))
-    setEvents((prevEvents) => prevEvents.filter((event) => event.id !== taskId))
-  }
+  const [currentWeekStart, setCurrentWeekStart] = useState(moment().startOf("week").toDate())
+  const [currentMonthStart, setCurrentMonthStart] = useState(moment().startOf("month").toDate())
   const [calendarView, setCalendarView] = useState<'week' | 'month'>('week')
 
   const router = useRouter()
 
- useEffect(() => {
-  // Convert only scheduled tasks to events
-  const scheduledEvents = tasks
-    .filter(task => task.scheduledTime !== null)
-    .map(task => ({
-      id: task.id,
-      title: task.content,
-      start: task.scheduledTime!.start,
-      end: task.scheduledTime!.end,
-    }))
-  setEvents(scheduledEvents)
-}, [tasks])
-const addTask = (e: React.FormEvent<HTMLFormElement> | React.MouseEvent<HTMLButtonElement>) => {
-    e.preventDefault();
+  const { data: tasksData, refetch: refetchTasks } = trpc.getTasks.useQuery()
+  const createTaskMutation = trpc.createTask.useMutation()
+  const updateTaskMutation = trpc.updateTask.useMutation()
+  const deleteTaskMutation = trpc.deleteTask.useMutation()
+
+  useEffect(() => {
+    if (tasksData) {
+      setTasks(tasksData.map(task => ({
+        ...task,
+        dueDate: task.dueDate ? new Date(task.dueDate) : null,
+        scheduledTime: task.scheduledTime ? {
+          ...task.scheduledTime,
+          start: new Date(task.scheduledTime.start),
+          end: new Date(task.scheduledTime.end)
+        } : null
+      })))
+    }
+  }, [tasksData])
+
+  useEffect(() => {
+    const scheduledEvents = tasks
+      .filter(task => task.scheduledTime !== null)
+      .map(task => ({
+        id: task.id,
+        title: task.content,
+        start: task.scheduledTime!.start,
+        end: task.scheduledTime!.end,
+      }))
+    setEvents(scheduledEvents)
+  }, [tasks])
+
+  const handleDeleteTask = async (taskId: string) => {
+    await deleteTaskMutation.mutateAsync(taskId)
+    refetchTasks()
+  }
+
+  const addTask = async (e: React.FormEvent<HTMLFormElement> | React.MouseEvent<HTMLButtonElement>) => {
+    e.preventDefault()
     if (newTask.trim()) {
-      const task: Task = {
-        id: Date.now().toString(),
+      await createTaskMutation.mutateAsync({
         content: newTask,
-        dueDate: selectedDate,
-        estimatedTime: 1,
-        scheduledTime: null,
-        actualTime: null,
-      }
-      setTasks((prevTasks) => [...prevTasks, task])
+        dueDate: selectedDate.toISOString(),
+        estimatedTime: 60, // Default to 1 hour
+      })
       setNewTask("")
+      refetchTasks()
     }
   }
+
   const handleScheduleTask = (task: Task) => {
     setSelectedTask(task)
     setIsScheduleModalOpen(true)
@@ -679,136 +694,60 @@ const addTask = (e: React.FormEvent<HTMLFormElement> | React.MouseEvent<HTMLButt
     return Math.round(duration.asHours() * 10) / 10
   }
 
-  // const calculatePriority = (task: Task) => {
-  //   const daysUntilDue = moment(task.dueDate).diff(moment(), "days")
-  //   const estimatedTimeNum = task.estimatedTime
+  const handleTaskScheduled = async (taskId: string, start: Date, end: Date) => {
+    await updateTaskMutation.mutateAsync({
+      id: taskId,
+      scheduledTime: { start, end },
+    })
+    refetchTasks()
+  }
 
-  //   if (daysUntilDue <= 1 && estimatedTimeNum > 4) return 100
-  //   if (daysUntilDue <= 3 && estimatedTimeNum > 2) return 75
-  //   if (daysUntilDue <= 7) return 50
-  //   return 25
-  // }
-
-  const handleTaskScheduled = (taskId: string, start: Date, end: Date) => {
-    const actualTime = calculateActualTime(start, end)
-    setTasks((prevTasks) =>
-      prevTasks.map((task) => {
-        if (task.id === taskId) {
-          const updatedTask = {
-            ...task,
-            scheduledTime: { start, end },
-            actualTime,
-          }
-          // updatedTask.priority = calculatePriority(updatedTask)
-          return updatedTask
-        }
-        return task
-      })
-    )
-  
-    // Add the event to the calendar only when explicitly scheduled
-    const taskToSchedule = tasks.find((t) => t.id === taskId)
-    if (taskToSchedule) {
-      const newEvent = {
+  const handleTaskUpdate = async (taskId: string, updatedInfo: Partial<Task>) => {
+      const { dueDate, actualTime, ...otherInfo } = updatedInfo;
+      await updateTaskMutation.mutateAsync({
         id: taskId,
-        title: taskToSchedule.content,
-        start,
-        end,
-      }
-      setEvents((prevEvents) => [...prevEvents, newEvent])
-    }
+        ...otherInfo,
+        dueDate: dueDate === null ? undefined : dueDate,
+        scheduledTime: otherInfo.scheduledTime === null ? undefined : otherInfo.scheduledTime,
+        actualTime: actualTime === null ? undefined : actualTime,
+      });
+      refetchTasks();
+    };
+
+  const updateTaskAndEvent = async (taskId: string, start: Date, end: Date) => {
+    await updateTaskMutation.mutateAsync({
+      id: taskId,
+      scheduledTime: { start, end },
+    })
+    refetchTasks()
   }
 
-  const handleTaskUpdate = (taskId: string, updatedInfo: Partial<Task>) => {
-    setTasks((prevTasks) =>
-      prevTasks.map((task) => {
-        if (task.id === taskId) {
-          const updatedTask = { ...task, ...updatedInfo }
-          if (updatedTask.scheduledTime) {
-            updatedTask.actualTime = calculateActualTime(
-              updatedTask.scheduledTime.start,
-              updatedTask.scheduledTime.end,
-            )
-          }
-          // updatedTask.priority = calculatePriority(updatedTask)
-          return updatedTask
-        }
-        return task
-      })
-    )
-
-    setEvents((prevEvents) =>
-      prevEvents.map((event) => {
-        if (event.id === taskId) {
-          const updatedTask = tasks.find((t) => t.id === taskId)
-          if (updatedTask) {
-            return {
-              ...event,
-              title: updatedInfo.content || event.title,
-              start: updatedTask.scheduledTime?.start || event.start,
-              end: updatedTask.scheduledTime?.end || event.end,
-            }
-          }
-        }
-        return event
-      })
-    )
-  }
-
-  const updateTaskAndEvent = (taskId: string, start: Date, end: Date) => {
-    const actualTime = calculateActualTime(start, end)
-    setTasks((prevTasks) =>
-      prevTasks.map((task) => {
-        if (task.id === taskId) {
-          const updatedTask = {
-            ...task,
-            scheduledTime: { start, end },
-            actualTime,
-          }
-          // updatedTask.priority = calculatePriority(updatedTask)
-          return updatedTask
-        }
-        return task
-      })
-    )
-
-    setEvents((prevEvents) =>
-      prevEvents.map((event) => {
-        if (event.id === taskId) {
-          return { ...event, start, end }
-        }
-        return event
-      })
-    )
-  }
   const getFilteredTasks = () => {
     if (taskListView === 'daily') {
-      const dueDate = moment(selectedDate).startOf('day');
+      const dueDate = moment(selectedDate).startOf('day')
       const dueTasks = tasks.filter(task => 
         task.dueDate && moment(task.dueDate).isSame(dueDate, 'day')
-      );
+      )
       const scheduledTasks = tasks.filter(task => 
         task.scheduledTime && moment(task.scheduledTime.start).isSame(dueDate, 'day')
-      );
+      )
       
-      // Combine due tasks and scheduled tasks, removing duplicates
-      return [...new Set([...dueTasks, ...scheduledTasks])];
+      return [...new Set([...dueTasks, ...scheduledTasks])]
     } else {
-      const weekStart = moment(selectedDate).startOf('week');
-      const weekEnd = moment(selectedDate).endOf('week');
+      const weekStart = moment(selectedDate).startOf('week')
+      const weekEnd = moment(selectedDate).endOf('week')
       const weekTasks = tasks.filter(task => 
         (task.dueDate && moment(task.dueDate).isBetween(weekStart, weekEnd, 'day', '[]')) ||
         (task.scheduledTime && moment(task.scheduledTime.start).isBetween(weekStart, weekEnd, 'day', '[]'))
-      );
+      )
       
-      // Sort tasks by due date or scheduled date
       return weekTasks.sort((a, b) => {
-        const dateA = a.dueDate || (a.scheduledTime && a.scheduledTime.start) || new Date();
-        const dateB = b.dueDate || (b.scheduledTime && b.scheduledTime.start) || new Date();
-        return moment(dateA).diff(moment(dateB));
-      });
+        const dateA = a.dueDate || (a.scheduledTime && a.scheduledTime.start) || new Date()
+        const dateB = b.dueDate || (b.scheduledTime && b.scheduledTime.start) || new Date()
+        return moment(dateA).diff(moment(dateB))
+      })
     }
-  };
+  }
 
   const onEventResize = useCallback(
     ({ event, start, end }: { event: Event; start: Date; end: Date }) => {
@@ -835,29 +774,6 @@ const addTask = (e: React.FormEvent<HTMLFormElement> | React.MouseEvent<HTMLButt
     [tasks]
   )
 
-  const getDueTasks = (date: Date) => {
-    const dueDate = moment(date).startOf('day');
-    const dueTasks = tasks.filter(task => 
-      task.dueDate && moment(task.dueDate).isSame(dueDate, 'day')
-    );
-    const scheduledTasks = tasks.filter(task => 
-      task.scheduledTime && moment(task.scheduledTime.start).isSame(dueDate, 'day')
-    );
-    
-    // Combine due tasks and scheduled tasks, removing duplicates
-    const combinedTasks = [...new Set([...dueTasks, ...scheduledTasks])];
-    
-    return combinedTasks;
-  };
-
-  const getWeekTasks = (date: Date) => {
-    const weekStart = moment(date).startOf('week');
-    const weekEnd = moment(date).endOf('week');
-    return tasks.filter(task => 
-      task.dueDate && moment(task.dueDate).isBetween(weekStart, weekEnd, 'day', '[]')
-    );
-  }
-
   const handleRangeChange = (range: Date[] | { start: Date; end: Date }) => {
     const startDate = Array.isArray(range) ? range[0] : range.start
     const newWeekStart = moment(startDate).startOf("week").toDate()
@@ -865,77 +781,101 @@ const addTask = (e: React.FormEvent<HTMLFormElement> | React.MouseEvent<HTMLButt
     setSelectedDate(moment(startDate).toDate())
   }
 
-
-  
   const handleNavigate = (newDate: Date, view: typeof Views, action: NavigateAction) => {
-    let date = moment(selectedDate);
+    let date = moment(selectedDate)
   
     switch (action) {
       case "PREV":
-        date = taskListView === 'daily' ? date.subtract(1, "day") : date.subtract(1, "week");
-        break;
+        date = taskListView === 'daily' ? date.subtract(1, "day") : date.subtract(1, "week")
+        break
       case "NEXT":
-        date = taskListView === 'daily' ? date.add(1, "day") : date.add(1, "week");
-        break;
+        date = taskListView === 'daily' ? date.add(1, "day") : date.add(1, "week")
+        break
       case "TODAY":
-        date = moment();
-        break;
+        date = moment()
+        break
       default:
-        date = moment(newDate);
+        date = moment(newDate)
     }
   
-    setSelectedDate(date.toDate());
+    setSelectedDate(date.toDate())
   
     if (taskListView === 'weekly') {
-      setCurrentWeekStart(date.startOf('week').toDate());
+      setCurrentWeekStart(date.startOf('week').toDate())
     }
-  };
+  }
 
   const handleSelectSlot = useCallback(({ start }: { start: Date }) => {
     setSelectedDate(start)
   }, [])
 
+  const CustomToolbar = ({ onNavigate, label, view, onViewChange }: { 
+    onNavigate: (newDate: Date, view: typeof Views, action: NavigateAction) => void
+    label: string
+    view: 'week' | 'month'
+    onViewChange: (view: 'week' | 'month') => void
+    }) => {
+    return (
+      <div className="flex justify-between items-center mb-4">
+        <div>
+          <Button
+            onClick={() => onNavigate(new Date(), Views.WEEK, "TODAY")}
+            variant="outline"
+            className="mr-2"
+          >
+            Today
+          </Button>
+          <Button
+            onClick={() => onNavigate(new Date(), Views.WEEK, "PREV")}
+            variant="outline"
+            className="mr-2"
+          >
+            Back
+          </Button>
+          <Button onClick={() => onNavigate(new Date(), Views.WEEK, "NEXT")} variant="outline">
+            Next
+          </Button>
+        </div>
+        {/* <ViewToggle view={view} onViewChange={onViewChange} /> */}
+        <span className="text-lg font-semibold">
+          {view === 'week' ? label : moment(label.split(' – ')[0]).format('MMMM YYYY')}
+        </span>
+      </div>
+    )
+  }
+
+  const CustomEvent = ({ event }: { event: Event }) => (
+    <div className="p-1 text-xs">
+      <strong>{event.title}</strong>
+      <br />
+      {moment(event.start).format('h:mm A')} - {moment(event.end).format('h:mm A')}
+    </div>
+  )
 
   return (
-      <div className="flex h-screen bg-white">
-        <aside className="w-16 bg-gray-800 text-white flex flex-col justify-between py-4">
-          <div className="flex flex-col items-center space-y-4">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setActiveView("dashboard")}
-              className={`rounded-full ${activeView === "dashboard" ? "bg-gray-700" : ""}`}
-            >
-              <LayoutDashboardIcon className="h-6 w-6" />
-              <span className="sr-only">Dashboard</span>
-            </Button>
-            {/* <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setActiveView("calendar")}
-              className={`rounded-full ${activeView === "calendar" ? "bg-gray-700" : ""}`}
-            >
-              <CalendarIcon className="h-6 w-6" />
-              <span className="sr-only">Calendar</span>
-            </Button> */}
-          </div>
-          <div className="flex flex-col items-center space-y-4">
-            {/* <Button variant="ghost" size="icon" className="rounded-full">
-              <SettingsIcon className="h-6 w-6" />
-              <span className="sr-only">Settings</span>
-            </Button> */}
-            <a href="/api/auth/logout" >
+    <div className="flex h-screen bg-white">
+      <aside className="w-16 bg-gray-800 text-white flex flex-col justify-between py-4">
+        <div className="flex flex-col items-center space-y-4">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setActiveView("dashboard")}
+            className={`rounded-full ${activeView === "dashboard" ? "bg-gray-700" : ""}`}
+          >
+            <LayoutDashboardIcon className="h-6 w-6" />
+            <span className="sr-only">Dashboard</span>
+          </Button>
+        </div>
+        <div className="flex flex-col items-center space-y-4">
+          <a href="/api/auth/logout" >
             <Button variant="ghost" size="icon" className="rounded-full" >
-              
               <LogOut className="h-6 w-6" />
-              <span className="sr-only">
-                Logout
-                </span>
+              <span className="sr-only">Logout</span>
             </Button>
-            </a>
-          </div>
-        </aside>
-        <div className="flex-1 flex">
+          </a>
+        </div>
+      </aside>
+      <div className="flex-1 flex">
         <div className="w-1/4 bg-muted/20 p-6 overflow-y-auto">
           <div className="mb-4">
             <div className="flex justify-between items-center mb-4">
@@ -960,23 +900,57 @@ const addTask = (e: React.FormEvent<HTMLFormElement> | React.MouseEvent<HTMLButt
               onSelectDate={setSelectedDate}
               view={taskListView}
             />
-            <TaskInputForm newTask={newTask} setNewTask={setNewTask} addTask={addTask} />
+            <form onSubmit={addTask} className="mb-4">
+              <Input
+                type="text"
+                value={newTask}
+                onChange={(e) => setNewTask(e.target.value)}
+                placeholder="New task"
+                className="mb-2"
+              />
+              <Button type="submit">Add Task</Button>
+            </form>
             <div>
               {getFilteredTasks().map((task) => (
-                <TaskComponent
-                  key={task.id}
-                  task={task}
-                  onSchedule={handleScheduleTask}
-                  onView={handleViewTask}
-                  onDelete={handleDeleteTask}
-                  selectedDate={selectedDate}
-                />
+                <Card key={task.id} className="mb-2">
+                  <CardContent className="p-4">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <p className="font-medium">{task.content}</p>
+                        <div className="flex flex-wrap gap-2 mt-2">
+                          {task.dueDate && (
+                            <Badge variant="outline">
+                              Due: {moment(task.dueDate).format("MMM D")}
+                            </Badge>
+                          )}
+                          <Badge>Est: {task.estimatedTime}m</Badge>
+                          {task.actualTime && (
+                            <Badge variant="secondary">
+                              Actual: {task.actualTime}m
+                            </Badge>
+                          )}
+                        </div>
+                        {task.scheduledTime && (
+                          <div className="mt-2 text-sm text-muted-foreground flex items-center">
+                            <ClockIcon className="w-4 h-4 mr-1" />
+                            Scheduled: {moment(task.scheduledTime.start).format("MMM D, h:mm A")}
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex space-x-2">
+                        <Button variant="outline" size="sm" onClick={() => handleViewTask(task)}>View</Button>
+                        <Button variant="outline" size="sm" onClick={() => handleDeleteTask(task.id)}>Delete</Button>
+                        <Button variant="ghost" className="text-red-500 hover:text-red-700" aria-label="Delete task"size="icon" onClick={() => handleScheduleTask(task)}><Trash className="h-4 w-4" /></Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
               ))}
             </div>
           </div>  
         </div>
         <div className="flex-1 p-6 overflow-hidden">
-          <h1 className="text-3xl font-bold mb-6">Welcome, Shiven</h1>
+          <h1 className="text-3xl font-bold mb-6">Welcome, User</h1>
           <DragAndDropCalendar
             localizer={localizer}
             events={events}
@@ -986,7 +960,7 @@ const addTask = (e: React.FormEvent<HTMLFormElement> | React.MouseEvent<HTMLButt
             views={[Views.WEEK, Views.MONTH]}
             view={taskListView === 'weekly' ? Views.MONTH : Views.WEEK}
             onView={(newView) => {
-              setTaskListView(newView === Views.MONTH ? 'weekly' : 'daily');
+              setTaskListView(newView === Views.MONTH ? 'weekly' : 'daily')
             }}
             defaultView={Views.WEEK}
             min={new Date(0, 0, 0, 0, 0, 0)}
