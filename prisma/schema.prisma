@@ -42,5 +42,5 @@ model ScheduledTime {
   start DateTime
   end DateTime
   taskId String @unique @db.ObjectId
-  task Task @relation(fields: [taskId], references: [id])
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
 }

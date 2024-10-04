@@ -1,10 +1,10 @@
 "use client"
-import { LogoutLink } from '@kinde-oss/kinde-auth-nextjs/server'
+import {useKindeBrowserClient} from "@kinde-oss/kinde-auth-nextjs";
 import { trpc } from '@/app/_trpc/client'
 
 import React, { useState, useCallback, useEffect } from "react"
 import { Calendar, momentLocalizer, Views } from "react-big-calendar"
-import withDragAndDrop from 'react-big-calendar/lib/addons/dragAndDrop';
+import withDragAndDrop, { EventInteractionArgs } from 'react-big-calendar/lib/addons/dragAndDrop'
 import moment from "moment"
 import { NavigateAction } from "react-big-calendar";
 import { useRouter } from 'next/navigation'
@@ -48,8 +48,9 @@ interface Task {
   // priority: number | null
   dueDate: Date | null | undefined
   estimatedTime: number
-  scheduledTime: { start: Date; end: Date } | null
-  actualTime: number | null
+  scheduledTime: { start: Date; end: Date } | null | undefined
+  actualTime: number | null | undefined
+  allDay?: boolean;
 }
 
 interface DashboardProps {
@@ -289,62 +290,63 @@ interface Event {
   title: string;
   start: Date;
   end: Date;
+  allDay: boolean;
 }
 
 import { EventProps } from "react-big-calendar";
 
-const CustomEvent = ({ event }: EventProps<Event>) => {
-  const [isSmallEvent, setIsSmallEvent] = useState(false)
-  const eventRef = React.useRef(null)
+// const CustomEvent = ({ event }: EventProps<Event>) => {
+//   const [isSmallEvent, setIsSmallEvent] = useState(false)
+//   const eventRef = React.useRef(null)
 
-  React.useEffect(() => {
-    if (eventRef.current) {
-      const { offsetHeight } = eventRef.current
-      setIsSmallEvent(offsetHeight < 40)
-    }
-  }, [event])
+//   React.useEffect(() => {
+//     if (eventRef.current) {
+//       const { offsetHeight } = eventRef.current
+//       setIsSmallEvent(offsetHeight < 40)
+//     }
+//   }, [event])
 
-  return (
-    <TooltipProvider>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <div
-            ref={eventRef}
-            className={`bg-blue-500 text-white p-1 rounded overflow-hidden h-full flex flex-col justify-center ${
-              isSmallEvent ? "items-center" : ""
-            }`}
-          >
-            {isSmallEvent ? (
-              <div
-                className="text-xs font-semibold truncate w-full text-center"
-                aria-label={event.title}
-              >
-                {event.title}
-              </div>
-            ) : (
-              <>
-                <div className="font-semibold text-sm truncate">
-                  {event.title}
-                </div>
-                <div className="text-xs">
-                  {moment(event.start).format("h:mm A")} -{" "}
-                  {moment(event.end).format("h:mm A")}
-                </div>
-              </>
-            )}
-          </div>
-        </TooltipTrigger>
-        <TooltipContent>
-          <p>{event.title}</p>
-          <p className="text-xs">
-            {moment(event.start).format("h:mm A")} -{" "}
-            {moment(event.end).format("h:mm A")}
-          </p>
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
-  )
-}
+//   return (
+//     <TooltipProvider>
+//       <Tooltip>
+//         <TooltipTrigger asChild>
+//           <div
+//             ref={eventRef}
+//             className={`bg-blue-500 text-white p-1 rounded overflow-hidden h-full flex flex-col justify-center ${
+//               isSmallEvent ? "items-center" : ""
+//             }`}
+//           >
+//             {isSmallEvent ? (
+//               <div
+//                 className="text-xs font-semibold truncate w-full text-center"
+//                 aria-label={event.title}
+//               >
+//                 {event.title}
+//               </div>
+//             ) : (
+//               <>
+//                 <div className="font-semibold text-sm truncate">
+//                   {event.title}
+//                 </div>
+//                 <div className="text-xs">
+//                   {moment(event.start).format("h:mm A")} -{" "}
+//                   {moment(event.end).format("h:mm A")}
+//                 </div>
+//               </>
+//             )}
+//           </div>
+//         </TooltipTrigger>
+//         {/* <TooltipContent>
+//           <p>{event.title}</p>
+//           <p className="text-xs">
+//             {moment(event.start).format("h:mm A")} -{" "}
+//             {moment(event.end).format("h:mm A")}
+//           </p>
+//         </TooltipContent> */}
+//       </Tooltip>
+//     </TooltipProvider>
+//   )
+// }
 
 interface TaskScheduleModalProps {
   isOpen: boolean;
@@ -617,6 +619,9 @@ export default function Dashboard() {
   const [currentWeekStart, setCurrentWeekStart] = useState(moment().startOf("week").toDate())
   const [currentMonthStart, setCurrentMonthStart] = useState(moment().startOf("month").toDate())
   const [calendarView, setCalendarView] = useState<'week' | 'month'>('week')
+  const {user, getUser} = useKindeBrowserClient();
+  const userDetails = getUser();
+  const userId = userDetails?.given_name;
 
   const router = useRouter()
 
@@ -640,6 +645,55 @@ export default function Dashboard() {
   }, [tasksData])
 
   useEffect(() => {
+    const scheduledEvents: Event[] = tasks
+      .filter(task => task.scheduledTime !== null)
+      .map(task => ({
+        id: task.id,
+        title: task.content,
+        start: task.scheduledTime!.start,
+        end: task.scheduledTime!.end,
+        allDay: task.allDay || false,
+      }))
+    setEvents(scheduledEvents)
+  }, [tasks])
+
+  const moveEvent = useCallback(
+    ({ event, start, end, isAllDay: droppedOnAllDaySlot }: EventInteractionArgs<Event>) => {
+      const { allDay } = event
+      let updatedAllDay = allDay
+
+      if (!allDay && droppedOnAllDaySlot) {
+        updatedAllDay = true
+      } else if (allDay && !droppedOnAllDaySlot) {
+        updatedAllDay = false
+      }
+
+      setEvents(prev => {
+        const existing = prev.find(ev => ev.id === event.id) ?? { id: event.id, title: event.title, start, end, allDay: updatedAllDay }
+        const filtered = prev.filter(ev => ev.id !== event.id)
+        return [...filtered, { ...existing, start, end, allDay: updatedAllDay } as Event]
+      })
+
+      updateTaskAndEvent(event.id, start, end, updatedAllDay)
+    },
+    [setEvents]
+  )
+
+  const resizeEvent = useCallback(
+    ({ event, start, end }: EventInteractionArgs<Event>) => {
+      setEvents(prev => {
+        const existing = prev.find(ev => ev.id === event.id) ?? { id: event.id, title: event.title, start, end, allDay: event.allDay }
+        const filtered = prev.filter(ev => ev.id !== event.id)
+        return [...filtered, { ...existing, start, end } as Event]
+      })
+
+      updateTaskAndEvent(event.id, start, end, event.allDay)
+    },
+    [setEvents]
+  )
+
+
+  useEffect(() => {
     const scheduledEvents = tasks
       .filter(task => task.scheduledTime !== null)
       .map(task => ({
@@ -647,6 +701,7 @@ export default function Dashboard() {
         title: task.content,
         start: task.scheduledTime!.start,
         end: task.scheduledTime!.end,
+        allDay: false, // Add this property
       }))
     setEvents(scheduledEvents)
   }, [tasks])
@@ -662,7 +717,8 @@ export default function Dashboard() {
       await createTaskMutation.mutateAsync({
         content: newTask,
         dueDate: selectedDate.toISOString(),
-        estimatedTime: 60, // Default to 1 hour
+        estimatedTime: 1, // Default to 1 hour
+        scheduledTime: undefined,
       })
       setNewTask("")
       refetchTasks()
@@ -691,37 +747,44 @@ export default function Dashboard() {
 
   const calculateActualTime = (start: Date, end: Date) => {
     const duration = moment.duration(moment(end).diff(moment(start)))
-    return Math.round(duration.asHours() * 10) / 10
+    return duration.asMinutes() / 60
   }
 
   const handleTaskScheduled = async (taskId: string, start: Date, end: Date) => {
+    const actualTime = calculateActualTime(start, end)
     await updateTaskMutation.mutateAsync({
       id: taskId,
-      scheduledTime: { start, end },
+      scheduledTime: { start: start.toISOString(), end: end.toISOString() },
+      actualTime: actualTime,
     })
     refetchTasks()
   }
 
   const handleTaskUpdate = async (taskId: string, updatedInfo: Partial<Task>) => {
-      const { dueDate, actualTime, ...otherInfo } = updatedInfo;
+      
+    const { dueDate, ...otherInfo } = updatedInfo;
+    
       await updateTaskMutation.mutateAsync({
         id: taskId,
         ...otherInfo,
-        dueDate: dueDate === null ? undefined : dueDate,
-        scheduledTime: otherInfo.scheduledTime === null ? undefined : otherInfo.scheduledTime,
-        actualTime: actualTime === null ? undefined : actualTime,
+        dueDate: dueDate === null ? undefined : dueDate.toISOString(),
+        scheduledTime: otherInfo.scheduledTime === null ? undefined : {
+          start: otherInfo.scheduledTime.start.toISOString(),
+          end: otherInfo.scheduledTime.end.toISOString(),
+        },
+        actualTime: calculateActualTime(otherInfo.scheduledTime.start, otherInfo.scheduledTime.end)
       });
       refetchTasks();
     };
 
-  const updateTaskAndEvent = async (taskId: string, start: Date, end: Date) => {
-    await updateTaskMutation.mutateAsync({
-      id: taskId,
-      scheduledTime: { start, end },
-    })
-    refetchTasks()
-  }
-
+    const updateTaskAndEvent = async (taskId: string, start: Date, end: Date, allDay: boolean) => {
+      await updateTaskMutation.mutateAsync({
+        id: taskId,
+        scheduledTime: { start: start.toISOString(), end: end.toISOString() },
+      })
+      refetchTasks()
+    }
+  
   const getFilteredTasks = () => {
     if (taskListView === 'daily') {
       const dueDate = moment(selectedDate).startOf('day')
@@ -750,15 +813,16 @@ export default function Dashboard() {
   }
 
   const onEventResize = useCallback(
-    ({ event, start, end }: { event: Event; start: Date; end: Date }) => {
-      updateTaskAndEvent(event.id, start, end)
+    (args: { event: Event; start: Date; end: Date }) => {
+      const { event, start, end } = args;
+      updateTaskAndEvent(event.id, start, end, event.allDay)
     },
     [updateTaskAndEvent]
   )
 
   const onEventDrop = useCallback(
     ({ event, start, end }: { event: Event; start: Date; end: Date }) => {
-      updateTaskAndEvent(event.id, start, end)
+      updateTaskAndEvent(event.id, start, end, event.allDay)
     },
     [updateTaskAndEvent]
   )
@@ -845,11 +909,47 @@ export default function Dashboard() {
   }
 
   const CustomEvent = ({ event }: { event: Event }) => (
+    
     <div className="p-1 text-xs">
       <strong>{event.title}</strong>
-      <br />
-      {moment(event.start).format('h:mm A')} - {moment(event.end).format('h:mm A')}
+      {/* <br />
+      {moment(event.start).format('h:mm A')} - {moment(event.end).format('h:mm A')} */}
     </div>
+  )
+  const dayPropGetter = useCallback(
+    (date: Date) => {
+      const isSelected = moment(date).isSame(selectedDate, 'day')
+      const isToday = moment(date).isSame(new Date(), 'day')
+      const isSelectedWeek = taskListView === 'weekly' && 
+        moment(date).isBetween(moment(selectedDate).startOf('week'), moment(selectedDate).endOf('week'), 'day', '[]')
+      
+      if (isSelectedWeek) {
+        return {
+          className: 'rbc-selected-week',
+          style: {
+            backgroundColor: 'rgba(66, 153, 225, 0.2)', // Light blue background for the whole week
+          }
+        }
+      }
+      
+      if (isSelected && taskListView === 'daily') {
+        return {
+          className: 'rbc-selected-day',
+          style: {
+            backgroundColor: 'rgba(66, 153, 225, 0.2)', // Slightly darker blue for the selected day
+          }
+        }
+      }
+      
+      if (isToday) {
+        return {
+          className: 'rbc-today',
+        }
+      }
+      
+      return {}
+    },
+    [selectedDate, taskListView]
   )
 
   return (
@@ -910,7 +1010,7 @@ export default function Dashboard() {
               />
               <Button type="submit">Add Task</Button>
             </form>
-            <div>
+            {/* <div>
               {getFilteredTasks().map((task) => (
                 <Card key={task.id} className="mb-2">
                   <CardContent className="p-4">
@@ -946,11 +1046,21 @@ export default function Dashboard() {
                   </CardContent>
                 </Card>
               ))}
-            </div>
+            </div> */}
+            {getFilteredTasks().map((task) => (
+                <TaskComponent
+                  key={task.id}
+                  task={task}
+                  onSchedule={handleScheduleTask}
+                  onView={handleViewTask}
+                  onDelete={handleDeleteTask}
+                  selectedDate={selectedDate}
+                />
+              ))}
           </div>  
         </div>
         <div className="flex-1 p-6 overflow-hidden">
-          <h1 className="text-3xl font-bold mb-6">Welcome, User</h1>
+          <h1 className="text-3xl font-bold mb-6">Welcome, {userId}</h1>
           <DragAndDropCalendar
             localizer={localizer}
             events={events}
@@ -967,14 +1077,17 @@ export default function Dashboard() {
             max={new Date(0, 0, 0, 23, 59, 59)}
             step={10}
             timeslots={6}
-            onEventResize={onEventResize}
-            onEventDrop={onEventDrop}
+            onEventResize={resizeEvent}
+            onEventDrop={moveEvent}
             onSelectEvent={handleSelectEvent}
             onRangeChange={handleRangeChange}
             onNavigate={handleNavigate}
             onSelectSlot={handleSelectSlot}
             selectable={true}
             date={selectedDate}
+            resizable
+            popup
+            dayPropGetter={dayPropGetter}
             components={{
               toolbar: (props) => (
                 <CustomToolbar 

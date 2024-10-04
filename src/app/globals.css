@@ -38,6 +38,63 @@
   .card {
     @apply p-10 border border-[#222222]/10 rounded-3xl shadow-[0_7px_14px_#EAEAEA] max-w-xs w-full;
   }
+  /* Add this to your global CSS file */
+
+  
+  .rbc-event {
+    padding: 0 !important;
+  }
+  
+  .rbc-event-content {
+    height: 100%;
+  }
+.rbc-event {
+  display: flex;
+  flex-direction: column;
+}
+
+.rbc-event-content {
+  flex-grow: 1;
+}
+
+.rbc-event-label {
+  flex-shrink: 0;
+}
+
+.rbc-event-resizable {
+  cursor: ns-resize;
+}
+
+.rbc-selected-week {
+  background-color: rgba(66, 153, 225, 0.1) !important;
+}
+
+.rbc-selected-week .rbc-button-link {
+  color: #2b6cb0 !important;
+}
+
+.rbc-selected-day {
+  background-color: rgba(66, 153, 225, 0.2) !important;
+}
+
+.rbc-selected-day .rbc-button-link {
+  color: #2b6cb0 !important;
+  font-weight: bold;
+}
+
+.rbc-today {
+  background-color: rgba(252, 211, 77, 0.2) !important;
+}
+
+.rbc-today .rbc-button-link {
+  font-weight: bold;
+}
+.rbc-event-content {
+  cursor: grab;
+}
+.rbc-event .rbc-resizable {
+  cursor: ns-resize;
+}
 }
 
 @layer base {

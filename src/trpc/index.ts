@@ -124,7 +124,7 @@ export const appRouter = router({
       return task
     }),
 
-  deleteTask: publicProcedure
+    deleteTask: publicProcedure
     .input(z.string())
     .mutation(async ({ input }) => {
       const { getUser } = getKindeServerSession()
@@ -132,6 +132,14 @@ export const appRouter = router({
 
       if (!user.id) throw new TRPCError({ code: 'UNAUTHORIZED' })
 
+      // First, delete the associated ScheduledTime if it exists
+      await db.scheduledTime.deleteMany({
+        where: {
+          taskId: input,
+        },
+      })
+
+      // Then, delete the Task
       await db.task.delete({
         where: {
           id: input,
@@ -141,6 +149,8 @@ export const appRouter = router({
 
       return { success: true }
     })
+
+  // ... other procedures
 })
 
 export type AppRouter = typeof appRouter;
