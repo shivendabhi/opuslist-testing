@@ -1,5 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  experimental: {
+    missingSuspenseWithCSRBailout: false,
+  },
   reactStrictMode: false,
   webpack(config) {
     // Grab the existing rule that handles SVG imports
