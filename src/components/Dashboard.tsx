@@ -2,8 +2,8 @@
 import {useKindeBrowserClient} from "@kinde-oss/kinde-auth-nextjs";
 import { trpc } from '@/app/_trpc/client'
 
-import React, { useState, useCallback, useEffect } from "react"
-import { Calendar, momentLocalizer, Views } from "react-big-calendar"
+import React, { useState, useCallback, useEffect, SyntheticEvent } from "react"
+import { Calendar, momentLocalizer, Views, View } from "react-big-calendar"
 import withDragAndDrop, { EventInteractionArgs } from 'react-big-calendar/lib/addons/dragAndDrop'
 import moment from "moment"
 import { NavigateAction } from "react-big-calendar";
@@ -102,9 +102,18 @@ const ViewToggle: React.FC<ViewToggleProps> = ({ view, onViewChange }) => {
     </div>
   )
 }
-
+const stringToView = (viewString: string): View => {
+  const viewMap: { [key: string]: View } = {
+    month: Views.MONTH,
+    week: Views.WEEK,
+    work_week: Views.WORK_WEEK,
+    day: Views.DAY,
+    agenda: Views.AGENDA
+  }
+  return viewMap[viewString.toLowerCase()] || Views.WEEK
+}
 const CustomToolbar = ({ onNavigate, label, view, onViewChange }: { 
-  onNavigate: (newDate: Date, view: typeof Views, action: NavigateAction) => void
+  onNavigate: (newDate: Date, view: string, action: NavigateAction) => void
   label: string
   view: 'week' | 'month'
   onViewChange: (view: 'week' | 'month') => void
@@ -604,6 +613,14 @@ const TaskViewEditModal: React.FC<TaskViewEditModalProps> = ({ isOpen, onClose, 
   )
 }
 
+interface CalendarEvent {
+  id: string
+  title: string
+  start: Date
+  end: Date
+  allDay?: boolean
+}
+
 const DragAndDropCalendar = withDragAndDrop(Calendar);
 
 export default function Dashboard() {
@@ -674,7 +691,7 @@ export default function Dashboard() {
         return [...filtered, { ...existing, start, end, allDay: updatedAllDay } as Event]
       })
 
-      updateTaskAndEvent(event.id, start, end, updatedAllDay)
+      updateTaskAndEvent(event.id, new Date(start), new Date(end), updatedAllDay)
     },
     [setEvents]
   )
@@ -687,7 +704,7 @@ export default function Dashboard() {
         return [...filtered, { ...existing, start, end } as Event]
       })
 
-      updateTaskAndEvent(event.id, start, end, event.allDay)
+      updateTaskAndEvent(event.id, new Date(start), new Date(end), event.allDay)
     },
     [setEvents]
   )
@@ -767,12 +784,12 @@ export default function Dashboard() {
       await updateTaskMutation.mutateAsync({
         id: taskId,
         ...otherInfo,
-        dueDate: dueDate === null ? undefined : dueDate.toISOString(),
+        dueDate: dueDate ? dueDate.toISOString() : undefined,
         scheduledTime: otherInfo.scheduledTime === null ? undefined : {
-          start: otherInfo.scheduledTime.start.toISOString(),
-          end: otherInfo.scheduledTime.end.toISOString(),
+          start: otherInfo.scheduledTime!.start.toISOString(),
+          end: otherInfo.scheduledTime!.end.toISOString(),
         },
-        actualTime: calculateActualTime(otherInfo.scheduledTime.start, otherInfo.scheduledTime.end)
+        actualTime: otherInfo.scheduledTime ? calculateActualTime(otherInfo.scheduledTime.start, otherInfo.scheduledTime.end) : undefined
       });
       refetchTasks();
     };
@@ -828,7 +845,7 @@ export default function Dashboard() {
   )
 
   const handleSelectEvent = useCallback(
-    (event: { id: string }) => {
+    (event: CalendarEvent, e: React.MouseEvent<HTMLElement>) => {
       const task = tasks.find((t) => t.id === event.id)
       if (task) {
         setSelectedTask(task)
@@ -845,7 +862,7 @@ export default function Dashboard() {
     setSelectedDate(moment(startDate).toDate())
   }
 
-  const handleNavigate = (newDate: Date, view: typeof Views, action: NavigateAction) => {
+  const handleNavigate = (newDate: Date, view: string, action: NavigateAction) => {
     let date = moment(selectedDate)
   
     switch (action) {
@@ -874,7 +891,7 @@ export default function Dashboard() {
   }, [])
 
   const CustomToolbar = ({ onNavigate, label, view, onViewChange }: { 
-    onNavigate: (newDate: Date, view: typeof Views, action: NavigateAction) => void
+    onNavigate: (newDate: Date, view: string, action: NavigateAction) => void
     label: string
     view: 'week' | 'month'
     onViewChange: (view: 'week' | 'month') => void
@@ -1064,8 +1081,8 @@ export default function Dashboard() {
           <DragAndDropCalendar
             localizer={localizer}
             events={events}
-            startAccessor="start"
-            endAccessor="end"
+            startAccessor={(event) => (event as Event).start}
+            endAccessor={(event) => (event as Event).end}
             style={{ height: "calc(100vh - 150px)" }}
             views={[Views.WEEK, Views.MONTH]}
             view={taskListView === 'weekly' ? Views.MONTH : Views.WEEK}
@@ -1077,9 +1094,9 @@ export default function Dashboard() {
             max={new Date(0, 0, 0, 23, 59, 59)}
             step={10}
             timeslots={6}
-            onEventResize={resizeEvent}
-            onEventDrop={moveEvent}
-            onSelectEvent={handleSelectEvent}
+            onEventResize={resizeEvent as any}
+            onEventDrop={moveEvent as any}
+            onSelectEvent={handleSelectEvent as any}
             onRangeChange={handleRangeChange}
             onNavigate={handleNavigate}
             onSelectSlot={handleSelectSlot}
@@ -1097,7 +1114,7 @@ export default function Dashboard() {
                   onViewChange={(newView) => setTaskListView(newView === 'month' ? 'weekly' : 'daily')}
                 />
               ),
-              event: CustomEvent,
+              event: CustomEvent as any,
             }}
             scrollToTime={new Date(0, 0, 0, 5, 0, 0)}
           />
