@@ -777,12 +777,14 @@ export default function Dashboard() {
     const availableSlot = findAvailableTimeSlot(selectedDate, task.estimatedTime)
     
     if (availableSlot) {
+      const actualTime = calculateActualTime(availableSlot.start, availableSlot.end)
       await updateTaskMutation.mutateAsync({
         id: task.id,
         scheduledTime: { 
           start: availableSlot.start.toISOString(), 
-          end: availableSlot.end.toISOString() 
+          end: availableSlot.end.toISOString() ,
         },
+        actualTime: actualTime,
       })
       refetchTasks()
     } else {
@@ -822,21 +824,29 @@ export default function Dashboard() {
   }
 
   const handleTaskUpdate = async (taskId: string, updatedInfo: Partial<Task>) => {
-      
     const { dueDate, ...otherInfo } = updatedInfo;
     
-      await updateTaskMutation.mutateAsync({
-        id: taskId,
-        ...otherInfo,
-        dueDate: dueDate ? dueDate.toISOString() : undefined,
-        scheduledTime: otherInfo.scheduledTime === null ? undefined : {
-          start: otherInfo.scheduledTime!.start.toISOString(),
-          end: otherInfo.scheduledTime!.end.toISOString(),
-        },
-        actualTime: otherInfo.scheduledTime ? calculateActualTime(otherInfo.scheduledTime.start, otherInfo.scheduledTime.end) : undefined
-      });
-      refetchTasks();
+    const updatedTask = {
+      id: taskId,
+      ...otherInfo,
+      dueDate: dueDate ? dueDate.toISOString() : undefined,
+      scheduledTime: otherInfo.scheduledTime ? {
+        start: otherInfo.scheduledTime.start.toISOString(),
+        end: otherInfo.scheduledTime.end.toISOString(),
+      } : undefined,
+      actualTime: otherInfo.scheduledTime 
+        ? calculateActualTime(otherInfo.scheduledTime.start, otherInfo.scheduledTime.end) 
+        : undefined
     };
+
+    try {
+      await updateTaskMutation.mutateAsync(updatedTask);
+      refetchTasks();
+    } catch (error) {
+      console.error("Error updating task:", error);
+      // Handle error (e.g., show an error message to the user)
+    }
+  };
 
     const updateTaskAndEvent = async (taskId: string, start: Date, end: Date, allDay: boolean) => {
       await updateTaskMutation.mutateAsync({
