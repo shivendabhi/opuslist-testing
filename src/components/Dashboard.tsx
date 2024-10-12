@@ -674,6 +674,37 @@ export default function Dashboard() {
     setEvents(scheduledEvents)
   }, [tasks])
 
+  const findAvailableTimeSlot = (date: Date, duration: number) => {
+    const startOfDay = moment(date).startOf('day').hour(8)
+    const endOfDay = moment(date).startOf('day').hour(20)
+    
+    const scheduledEvents = events.filter(event => 
+      moment(event.start).isSame(date, 'day')
+    )
+
+    while (startOfDay.isBefore(endOfDay)) {
+      const slotEnd = moment(startOfDay).add(duration, 'hours')
+      
+      if (slotEnd.isAfter(endOfDay)) {
+        break // No more slots available today
+      }
+
+      const isSlotAvailable = scheduledEvents.every(event => 
+        (startOfDay.isSameOrAfter(moment(event.end)) || slotEnd.isSameOrBefore(moment(event.start)))
+      )
+
+      if (isSlotAvailable) {
+        return {
+          start: startOfDay.toDate(),
+          end: slotEnd.toDate()
+        }
+      }
+
+      startOfDay.add(30, 'minutes') // Try next 30-minute slot
+    }
+
+    return null // No available slot found
+  }
   const moveEvent = useCallback(
     ({ event, start, end, isAllDay: droppedOnAllDaySlot }: EventInteractionArgs<Event>) => {
       const { allDay } = event
@@ -742,9 +773,22 @@ export default function Dashboard() {
     }
   }
 
-  const handleScheduleTask = (task: Task) => {
-    setSelectedTask(task)
-    setIsScheduleModalOpen(true)
+  const handleScheduleTask = async (task: Task) => {
+    const availableSlot = findAvailableTimeSlot(selectedDate, task.estimatedTime)
+    
+    if (availableSlot) {
+      await updateTaskMutation.mutateAsync({
+        id: task.id,
+        scheduledTime: { 
+          start: availableSlot.start.toISOString(), 
+          end: availableSlot.end.toISOString() 
+        },
+      })
+      refetchTasks()
+    } else {
+      // Handle case when no slot is available
+      alert("No available time slot found for this task today.")
+    }
   }
 
   const handleViewTask = (task: Task) => {
@@ -1077,7 +1121,7 @@ export default function Dashboard() {
           </div>  
         </div>
         <div className="flex-1 p-6 overflow-hidden">
-          <h1 className="text-3xl font-bold mb-6">Welcome, {userId}</h1>
+          <h1 className="text-3xl font-bold mb-6">Welcome, Shiven</h1>
           <DragAndDropCalendar
             localizer={localizer}
             events={events}
