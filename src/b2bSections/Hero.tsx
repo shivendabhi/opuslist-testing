@@ -1,76 +1,98 @@
 "use client";
-import ArrowIcon from "@/assets/arrow-right.svg";
-import calendarImage from "@/assets/calendarimage.png";
-import tasklistImage from "@/assets/tasklistimage.png";
-import Image from "next/image";
-import { motion, useScroll, useTransform } from "framer-motion";
-import { useRef } from "react";
-import { ChevronDown } from "lucide-react";
-export default function Hero() {
-  const heroRef = useRef(null);
-  const { scrollYProgress } = useScroll({
-    target: heroRef,
-    offset: ["start end", "end start"],
-  });
-  const translateY = useTransform(scrollYProgress, [0, 1], [150, -150]);
 
+import { motion } from "framer-motion";
+import { ChevronDown } from "lucide-react";
+import { Button } from "@/components/ui/button";
+
+export default function Hero() {
   return (
-    <section
-      ref={heroRef}
-      className="pt-8 pb-20 md:pt-5 md:pb-10 bg-gradient-to-br from-[#D0E8ED] to-[#E6F0F2] text-[#00313A] overflow-x-clip"
-    >
-      <div className="container z-50">
-        <div className="md:flex items-center">
-          <div className="md:w-[478px]">
-            <div className="inline-block px-3 py-1 bg-[#00313A]/15 rounded-full text-sm text-[#00313A] font-medium">
-              Enterprise-ready solution
-            </div>
-            <h1 className="text-5xl md:text-7xl font-bold tracking-tighter mt-6 text-[#00313A]">
-              Empower your team's productivity
-            </h1>
-            <p className="text-xl text-[#00313A]/80 tracking-tight mt-6">
-              Revolutionize how your organization manages time with AI-powered
-              scheduling and task management
-            </p>
-            <div className="flex gap-4 items-center mt-[30px]">
-              <a href="https://calendly.com/opuslist/product-demo">
-                <button className="bg-[#00313A] text-white px-6 py-3 rounded-lg font-medium hover:bg-[#004A59] transition-colors">
-                  Schedule a Demo
-                </button>
-              </a>
-              <button className="flex items-center gap-2 text-[#00313A]/70 hover:text-[#00313A] transition-colors">
-                <span>Learn more</span>
-                <ArrowIcon className="h-5 w-5" />
-              </button>
-            </div>
-          </div>
-          <div className="mt-20 md:mt-0 md:h-[648px] md:flex-1 relative">
-            <motion.img
-              src={calendarImage.src}
-              alt="Calendar view"
-              className="md:absolute md:h-full md:w-auto md:max-w-none md:-left-6 lg:left-0 "
+    <section className="relative pt-16 pb-32 md:pt-24 md:pb-40 overflow-hidden">
+      {/* Radial gradient background */}
+      <div className="absolute inset-0 bg-[#A0C0C8]" />
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_center,_var(--tw-gradient-stops))] from-[#FFFFFF] via-[#F0FAFF] to-transparent bg-[length:150%_100%]" />
+
+      <div className="container relative z-10">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6 }}
+          className="flex flex-col items-center text-center"
+        >
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: 0.2, duration: 0.4 }}
+            className="inline-block px-4 py-2 bg-[#00313A]/15 rounded-full text-sm text-[#00313A] font-semibold shadow-sm mb-8"
+          >
+            Enterprise-ready solution
+          </motion.div>
+          <motion.h1
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3, duration: 0.6 }}
+            className="text-4xl sm:text-5xl md:text-7xl font-bold tracking-tighter mt-4 text-[#00313A] leading-tight max-w-4xl"
+          >
+            Empower your team's productivity
+          </motion.h1>
+          <motion.p
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4, duration: 0.6 }}
+            className="text-lg sm:text-xl text-[#00313A]/80 tracking-tight mt-8 leading-relaxed max-w-2xl"
+          >
+            Revolutionize how your organization manages time with AI-powered
+            scheduling and task management
+          </motion.p>
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.5, duration: 0.6 }}
+            className="flex flex-col sm:flex-row gap-4 items-center mt-10"
+          >
+            <Button size="lg" asChild className="bg-[#00313A] text-white hover:bg-[#004A59]">
+              <a href="https://calendly.com/opuslist/product-demo">Schedule a Demo</a>
+            </Button>
+            <Button variant="outline" size="lg" className="text-[#00313A]">
+              Learn more
+            </Button>
+          </motion.div>
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ delay: 0.6, duration: 0.8 }}
+          className="mt-20 flex justify-center"
+        >
+          <div className="relative w-full max-w-4xl h-64 bg-gradient-to-r from-[#00313A]/20 via-[#004A59]/20 to-[#00313A]/20 rounded-xl overflow-hidden">
+            <motion.div
+              className="absolute inset-0 opacity-30"
               animate={{
-                translateY: [0, 0, 0],
+                backgroundPosition: ["0% 0%", "100% 100%"],
               }}
               transition={{
                 repeat: Infinity,
-                repeatType: "mirror",
-                duration: 5,
-                ease: "easeInOut",
+                repeatType: "reverse",
+                duration: 20,
+                ease: "linear",
               }}
-            />
-            <motion.img
-              src={tasklistImage.src}
-              width={400}
-              alt="Task list"
-              className="lg:block absolute top-[215px] left-[500px] rotate-[30deg]"
               style={{
-                translateY: translateY,
+                backgroundImage: "url(\"data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%239C92AC' fill-opacity='0.2'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E\")",
+                backgroundSize: "30px 30px",
               }}
             />
+            <div className="absolute inset-0 flex items-center justify-center text-[#00313A] font-semibold">
+              Interactive Demo Placeholder
+            </div>
           </div>
-        </div>
-        <div className="flex justify-center mt-8">
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.8, duration: 0.6 }}
+          className="flex justify-center mt-16"
+        >
           <motion.div
             animate={{
               y: [0, 10, 0],
@@ -81,14 +103,14 @@ export default function Hero() {
               duration: 2,
               ease: "easeInOut",
             }}
-            className="cursor-pointer"
+            className="cursor-pointer hover:text-[#004A59] transition-colors"
             onClick={() =>
               window.scrollTo({ top: window.innerHeight, behavior: "smooth" })
             }
           >
-            <ChevronDown size={32} className="text-[#00313A]" />
+            <ChevronDown size={36} className="text-[#00313A]" />
           </motion.div>
-        </div>
+        </motion.div>
       </div>
     </section>
   );
