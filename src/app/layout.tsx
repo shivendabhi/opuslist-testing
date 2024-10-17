@@ -23,7 +23,7 @@ export default function RootLayout({
       <body
         className={twMerge(
           dmSans.className,
-          "antialiased bg-gradient-to-br from-[#C0E0E8] to-[#E0F0F5]",
+          "antialiased ",
         )}
       >
         {children}

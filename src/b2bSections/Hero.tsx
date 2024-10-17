@@ -6,11 +6,13 @@ import { Button } from "@/components/ui/button";
 
 export default function Hero() {
   return (
-    <section className="relative pt-16 pb-32 md:pt-24 md:pb-40 overflow-hidden">
-      {/* Radial gradient background */}
-      <div className="absolute inset-0 bg-[#A0C0C8]" />
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_center,_var(--tw-gradient-stops))] from-[#FFFFFF] via-[#F0FAFF] to-transparent bg-[length:150%_100%]" />
-
+    <section className="relative pt-16 pb-32 md:pt-32 md:pb-40 overflow-hidden">
+      {/* Linear gradient background */}
+      <div className="absolute inset-0 bg-gradient-to-b from-[#E8F4F7] to-white" />
+      
+      {/* Gradient for transition to the next section */}
+      <div className="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-b from-transparent to-white" />
+      
       <div className="container relative z-10">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -51,9 +53,6 @@ export default function Hero() {
           >
             <Button size="lg" asChild className="bg-[#00313A] text-white hover:bg-[#004A59]">
               <a href="https://calendly.com/opuslist/product-demo">Schedule a Demo</a>
-            </Button>
-            <Button variant="outline" size="lg" className="text-[#00313A]">
-              Learn more
             </Button>
           </motion.div>
         </motion.div>

@@ -5,6 +5,7 @@ import { ProductShowcase } from "@/b2bSections/ProductShowcase";
 import Pricing from "@/b2bSections/Pricing";
 import { CallToAction } from "@/b2bSections/CallToAction";
 import { Footer } from "@/b2bSections/Footer";
+import FeatureShowcase from "@/b2bSections/featureShowcase";
 
 export default function Home() {
   return (
@@ -12,7 +13,7 @@ export default function Home() {
       <Header />
       <Hero />
       <LogoTicker />
-      <ProductShowcase />
+      <FeatureShowcase />
       <Pricing />
       <CallToAction />
       <Footer />

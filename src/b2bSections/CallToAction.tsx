@@ -1,4 +1,4 @@
-import ArrowRight from "@/assets/arrow-right.svg";
+import { ArrowRight } from 'lucide-react'
 
 export const CallToAction = () => {
   return (
@@ -13,18 +13,32 @@ export const CallToAction = () => {
             time management and boost efficiency.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <a href="https://calendly.com/opuslist/product-demo">
-              <button className="bg-white text-[#00313A] px-6 py-3 rounded-lg font-medium hover:bg-[#F0F4F5] transition-colors">
+            <a 
+              href="https://calendly.com/opuslist/product-demo"
+              className="inline-block group"
+            >
+              <button 
+                className="bg-white text-[#00313A] px-6 py-3 rounded-lg font-medium 
+                           transition-all duration-300 ease-in-out
+                           hover:bg-[#F0F4F5] hover:shadow-lg hover:scale-105"
+              >
                 Schedule a Demo
               </button>
             </a>
-            <button className="flex items-center justify-center gap-2 text-white/80 hover:text-white transition-colors">
-              <span>Learn more</span>
-              <ArrowRight className="h-5 w-5" />
+            <button 
+              className="flex items-center justify-center gap-2 text-white/80 
+                         hover:text-white transition-colors group"
+            >
+              <span className="transition-colors duration-300">
+                Learn more
+              </span>
+              <ArrowRight 
+                className="h-5 w-5 transition-all duration-300 group-hover:translate-x-1" 
+              />
             </button>
           </div>
         </div>
       </div>
     </section>
-  );
-};
+  )
+}
