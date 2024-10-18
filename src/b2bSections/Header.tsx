@@ -5,6 +5,7 @@ import Logo from "@/assets/opuslistlogo.png";
 import Image from "next/image";
 import MenuIcon from "@/assets/menu.svg";
 import {RegisterLink, LoginLink} from "@kinde-oss/kinde-auth-nextjs/components";
+import { Twitter, Linkedin, Instagram, YoutubeIcon } from 'lucide-react';
 
 export const Header = () => {
   const [isScrolled, setIsScrolled] = useState(false);
@@ -19,6 +20,19 @@ export const Header = () => {
       window.removeEventListener("scroll", handleScroll);
     };
   }, []);
+
+  const scrollToFeatures = (e: React.MouseEvent<HTMLAnchorElement>) => {
+    e.preventDefault();
+    const featuresSection = document.getElementById('features');
+    if (featuresSection) {
+      const headerHeight = 80; // Adjust this value based on your header's height
+      const targetPosition = featuresSection.getBoundingClientRect().top + window.pageYOffset - headerHeight;
+      window.scrollTo({
+        top: targetPosition,
+        behavior: 'smooth'
+      });
+    }
+  };
 
   return (
     <header
@@ -58,19 +72,31 @@ export const Header = () => {
               </div>
               <MenuIcon className="h-5 w-5 md:hidden" />
               <nav className="hidden md:flex gap-6 text-[#00313A]/80 items-center">
-                <a href="#">Solutions</a>
-                <a href="#">Features</a>
-                <a href="#">Customers</a>
-                <a href="#">Pricing</a>
-                <a href="#">Resources</a>
-                <LoginLink className="bg-[#00313A] text-white px-4 py-2 rounded-lg font-medium inline-flex align-items justify-center tracking-tight hover:bg-[#004A59] transition-colors">
-                    Get Started
-                </LoginLink>
+                <a href="#features" onClick={scrollToFeatures}>Features</a>
+                <a href="/pricing">Pricing</a>
+                <div className="relative group">
+                  <a href="#" className="flex items-center">
+                    Resources
+                    <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                  </a>
+                  <div className="absolute left-0 mt-2 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300">
+                    <div className="py-1" role="menu" aria-orientation="vertical" aria-labelledby="options-menu">
+                      <a href="/about" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" role="menuitem">About Us</a>
+                      <a href="/changelog" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" role="menuitem">Changelog</a>
+                      <a href="mailto:support@opuslist.ai" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" role="menuitem">Support</a>
+                    </div>
+                  </div>
+                </div>
+                <a href="https://calendly.com/opuslist/product-demo" className="text-[#00313A]/80 hover:text-[#00313A]">Book Demo</a>
+                <RegisterLink className="bg-[#00313A] text-white px-4 py-2 rounded-lg font-medium inline-flex align-items justify-center tracking-tight hover:bg-[#004A59] transition-colors">
+                  Get Started
+                </RegisterLink>
               </nav>
             </div>
           </div>
         </div>
       </div>
+      
     </header>
   );
 };

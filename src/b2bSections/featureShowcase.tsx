@@ -12,12 +12,12 @@ const features = [
     description: "Seamlessly integrate task prioritization into your workflow",
     gif: "/highlight-tasks.gif"
   },
-  {
-    icon: BookOpen,
-    title: "Organize your projects",
-    description: "Effortlessly manage and track multiple projects in one place",
-    gif: "/organize-projects.gif"
-  },
+  // {
+  //   icon: BookOpen,
+  //   title: "Organize your projects",
+  //   description: "Effortlessly manage and track multiple projects in one place",
+  //   gif: "/organize-projects.gif"
+  // },
   {
     icon: Wand2,
     title: "AI-powered productivity",
@@ -42,7 +42,7 @@ export default function FeatureShowcase() {
   const titleY = useTransform(smoothProgress, [0.1, 0.2, 0.8, 0.9], [50, 0, 0, -50])
 
   return (
-    <section ref={containerRef} className="relative py-24 overflow-hidden">
+    <section id="features" ref={containerRef} className="relative py-24 overflow-hidden">
       {/* Gradient background */}
       <div className="absolute inset-0 bg-gradient-to-b from-[#E8F4F7] via-white to-white" />
       <div className="absolute inset-0 top-0 h-32 bg-gradient-to-b from-white via-whiteto-[#E8F4F7]" />
@@ -111,15 +111,15 @@ export default function FeatureShowcase() {
             }}
           >
             <div className="bg-white shadow-2xl rounded-2xl overflow-hidden">
-              <div className="p-4">
-                <div className="relative aspect-video">
-                  {/* Uncomment and update the Image component when ready */}
-                  {/* <Image
+              <div className="p-6">
+                <div className="relative aspect-[16/10]">
+                  <Image
                     src={features[activeTab].gif}
                     alt={features[activeTab].title}
                     fill
-                    className="object-cover rounded-lg"
-                  /> */}
+                    className="object-contain rounded-lg"
+                    unoptimized
+                  />
                 </div>
               </div>
             </div>

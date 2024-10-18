@@ -10,8 +10,8 @@ const pricingTiers = [
     title: "Free",
     monthlyPrice: 0,
     buttonText: "Get Started",
-    buttonLink: "https://airtable.com/appvtWDhbKDDRZ7TE/pagtxfT0t3i2nOu4H/form",
-    popular: false,
+    buttonLink: "/api/auth/register?",
+    popular: true,
     features: [
       "Basic task management",
       "30 tasks per month",
@@ -24,8 +24,8 @@ const pricingTiers = [
   {
     title: "Pro",
     monthlyPrice: 9.99,
-    buttonText: "Start free trial",
-    popular: true,
+    buttonText: "Coming soon",
+    popular: false,
     features: [
       "Everything in Free, plus:",
       "Unlimited tasks",
@@ -39,7 +39,7 @@ const pricingTiers = [
   {
     title: "Teams",
     monthlyPrice: 19.99,
-    buttonText: "Start free trial",
+    buttonText: "Coming soon",
     popular: false,
     features: [
       "Everything in Pro, plus:",
@@ -108,7 +108,7 @@ export default function Pricing() {
             href="/business"
             className="inline-flex items-center px-8 py-2 bg-[#00313A] text-white rounded-full text-sm font-medium hover:bg-[#004A59] transition-colors "
           >
-            Looking for business plans?
+            Looking for business solutions?
             <ArrowRight className="ml-2 h-4 w-4" />
           </Link>
         </div>

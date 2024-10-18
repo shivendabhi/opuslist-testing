@@ -13,13 +13,13 @@ export default function CallToAction() {
             productivity with OpusList.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <a href="https://airtable.com/appvtWDhbKDDRZ7TE/pagtxfT0t3i2nOu4H/form">
+            <a href="/api/auth/register?">
               <button className="bg-white text-[#00313A] px-6 py-3 rounded-lg font-medium hover:bg-[#F0F4F5] transition-colors">
                 Start Free Trial
               </button>
             </a>
             <button className="flex items-center justify-center gap-2 text-white/80 hover:text-white transition-colors">
-              <span>Watch demo</span>
+              <a href="/about">Learn more</a>
               <ArrowRight className="h-5 w-5" />
             </button>
           </div>

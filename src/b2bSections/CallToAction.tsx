@@ -1,6 +1,10 @@
+'use client';
+
 import { ArrowRight } from 'lucide-react'
+import { useRouter } from 'next/navigation';
 
 export const CallToAction = () => {
+  const router = useRouter();
   return (
     <section className="bg-[#00313A] py-24 text-white">
       <div className="container">
@@ -28,6 +32,7 @@ export const CallToAction = () => {
             <button 
               className="flex items-center justify-center gap-2 text-white/80 
                          hover:text-white transition-colors group"
+              onClick={() => router.push('/about')}
             >
               <span className="transition-colors duration-300">
                 Learn more
