@@ -125,6 +125,19 @@ const PricingPage = () => {
 
   const currentPlans = isTeamView ? teamPlans : individualPlans;
 
+  const motionValues = currentPlans.map((_, index) => ({
+    opacity: useTransform(
+      scrollYProgress,
+      [0.3 + index * 0.1, 0.5 + index * 0.1],
+      [0, 1]
+    ),
+    y: useTransform(
+      scrollYProgress,
+      [0.3 + index * 0.1, 0.5 + index * 0.1],
+      [50, 0]
+    ),
+  }));
+
   return (
     <>
       <Header />
@@ -145,23 +158,12 @@ const PricingPage = () => {
         <div className="grid md:grid-cols-2 gap-8 max-w-5xl mx-auto">
           {currentPlans.map((plan, index) => (
             <motion.div
-              key={index}
+              key={plan.title}
               className={twMerge(
                 "bg-white rounded-lg shadow-lg p-8",
                 plan.title === "Teams" && "border-2 border-[#00313A] md:scale-105"
               )}
-              style={{
-                opacity: useTransform(
-                  smoothProgress,
-                  [0.3 + index * 0.1, 0.5 + index * 0.1],
-                  [0, 1]
-                ),
-                y: useTransform(
-                  smoothProgress,
-                  [0.3 + index * 0.1, 0.5 + index * 0.1],
-                  [50, 0]
-                ),
-              }}
+              style={motionValues[index]}
             >
               <div className="p-8 bg-[#00313A] text-white">
                 <h2 className="text-3xl font-bold mb-2">{plan.title}</h2>

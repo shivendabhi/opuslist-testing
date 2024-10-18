@@ -41,6 +41,19 @@ export default function FeatureShowcase() {
   const titleOpacity = useTransform(smoothProgress, [0.1, 0.2, 0.8, 0.9], [0, 1, 1, 0])
   const titleY = useTransform(smoothProgress, [0.1, 0.2, 0.8, 0.9], [50, 0, 0, -50])
 
+  const motionValues = features.map((_, index) => ({
+    opacity: useTransform(
+      scrollYProgress,
+      [0.1 * index, 0.2 + 0.1 * index],
+      [0, 1]
+    ),
+    y: useTransform(
+      scrollYProgress,
+      [0.1 * index, 0.2 + 0.1 * index],
+      [100, 0]
+    ),
+  }));
+
   return (
     <section id="features" ref={containerRef} className="relative py-24 overflow-hidden">
       {/* Gradient background */}
@@ -62,50 +75,37 @@ export default function FeatureShowcase() {
         </motion.div>
         <div className="flex flex-col lg:flex-row gap-12">
           <div className="lg:w-1/2 space-y-6">
-            {features.map((feature, index) => {
-              const opacity = useTransform(
-                smoothProgress,
-                [0.2 + index * 0.1, 0.3 + index * 0.1, 0.7 + index * 0.1, 0.8 + index * 0.1],
-                [0, 1, 1, 0]
-              );
-              const x = useTransform(
-                smoothProgress,
-                [0.2 + index * 0.1, 0.3 + index * 0.1, 0.7 + index * 0.1, 0.8 + index * 0.1],
-                [-100, 0, 0, -100]
-              );
-
-              return (
-                <motion.div 
-                  key={index} 
-                  style={{ opacity, x }}
-                  className={`flex items-start cursor-pointer transition-all duration-300 p-6 rounded-xl ${
-                    activeTab === index 
-                      ? 'bg-[#00313A] text-white shadow-lg' 
-                      : 'hover:bg-[#00313A]/10'
-                  }`}
-                  onClick={() => setActiveTab(index)}
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      setActiveTab(index)
-                    }
-                  }}
-                >
-                  <div className="flex-shrink-0">
-                    <feature.icon className={`h-8 w-8 ${
-                      activeTab === index ? 'text-white' : 'text-[#00313A]'
-                    }`} />
-                  </div>
-                  <div className="ml-4">
-                    <h3 className="text-2xl font-bold mb-2">{feature.title}</h3>
-                    <p className={`text-lg ${
-                      activeTab === index ? 'text-white/80' : 'text-[#00313A]/70'
-                    }`}>{feature.description}</p>
-                  </div>
-                </motion.div>
-              );
-            })}
+            {features.map((feature, index) => (
+              <motion.div 
+                key={index} 
+                style={motionValues[index]}
+                className={`flex items-start cursor-pointer transition-all duration-300 p-6 rounded-xl ${
+                  activeTab === index 
+                    ? 'bg-[#00313A] text-white shadow-lg' 
+                    : 'hover:bg-[#00313A]/10'
+                }`}
+                onClick={() => setActiveTab(index)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    setActiveTab(index)
+                  }
+                }}
+              >
+                <div className="flex-shrink-0">
+                  <feature.icon className={`h-8 w-8 ${
+                    activeTab === index ? 'text-white' : 'text-[#00313A]'
+                  }`} />
+                </div>
+                <div className="ml-4">
+                  <h3 className="text-2xl font-bold mb-2">{feature.title}</h3>
+                  <p className={`text-lg ${
+                    activeTab === index ? 'text-white/80' : 'text-[#00313A]/70'
+                  }`}>{feature.description}</p>
+                </div>
+              </motion.div>
+            ))}
           </div>
           <motion.div 
             className="lg:w-1/2"

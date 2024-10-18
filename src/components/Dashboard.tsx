@@ -697,6 +697,19 @@ export default function Dashboard() {
   const updateTaskMutation = trpc.updateTask.useMutation();
   const deleteTaskMutation = trpc.deleteTask.useMutation();
 
+  const updateTaskAndEvent = useCallback(async (
+    taskId: string,
+    start: Date,
+    end: Date,
+    allDay: boolean
+  ) => {
+    await updateTaskMutation.mutateAsync({
+      id: taskId,
+      scheduledTime: { start: start.toISOString(), end: end.toISOString() },
+    });
+    refetchTasks();
+  }, [updateTaskMutation, refetchTasks]);
+
   useEffect(() => {
     if (tasksData) {
       setTasks(
@@ -762,12 +775,7 @@ export default function Dashboard() {
     return null; // No available slot found
   };
   const moveEvent = useCallback(
-    ({
-      event,
-      start,
-      end,
-      isAllDay: droppedOnAllDaySlot,
-    }: EventInteractionArgs<Event>) => {
+    ({ event, start, end, isAllDay: droppedOnAllDaySlot }: EventInteractionArgs<Event>) => {
       const { allDay } = event;
       let updatedAllDay = allDay;
 
@@ -786,20 +794,12 @@ export default function Dashboard() {
           allDay: updatedAllDay,
         };
         const filtered = prev.filter((ev) => ev.id !== event.id);
-        return [
-          ...filtered,
-          { ...existing, start, end, allDay: updatedAllDay } as Event,
-        ];
+        return [...filtered, { ...existing, start, end, allDay: updatedAllDay } as Event];
       });
 
-      updateTaskAndEvent(
-        event.id,
-        new Date(start),
-        new Date(end),
-        updatedAllDay,
-      );
+      updateTaskAndEvent(event.id, new Date(start), new Date(end), updatedAllDay);
     },
-    [setEvents],
+    [setEvents, updateTaskAndEvent]
   );
 
   const resizeEvent = useCallback(
@@ -816,14 +816,9 @@ export default function Dashboard() {
         return [...filtered, { ...existing, start, end } as Event];
       });
 
-      updateTaskAndEvent(
-        event.id,
-        new Date(start),
-        new Date(end),
-        event.allDay,
-      );
+      updateTaskAndEvent(event.id, new Date(start), new Date(end), event.allDay);
     },
-    [setEvents],
+    [setEvents, updateTaskAndEvent]
   );
 
   useEffect(() => {
@@ -951,19 +946,6 @@ export default function Dashboard() {
       console.error("Error updating task:", error);
       // Handle error (e.g., show an error message to the user)
     }
-  };
-
-  const updateTaskAndEvent = async (
-    taskId: string,
-    start: Date,
-    end: Date,
-    allDay: boolean,
-  ) => {
-    await updateTaskMutation.mutateAsync({
-      id: taskId,
-      scheduledTime: { start: start.toISOString(), end: end.toISOString() },
-    });
-    refetchTasks();
   };
 
   const getFilteredTasks = () => {
@@ -1293,8 +1275,8 @@ export default function Dashboard() {
             max={new Date(0, 0, 0, 23, 59, 59)}
             step={10}
             timeslots={6}
-            onEventResize={resizeEvent as any}
-            onEventDrop={moveEvent as any}
+            onEventResize={onEventResize as any}
+            onEventDrop={onEventDrop as any}
             onSelectEvent={handleSelectEvent as any}
             onRangeChange={handleRangeChange}
             onNavigate={handleNavigate}

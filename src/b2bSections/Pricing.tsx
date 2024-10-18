@@ -58,6 +58,19 @@ export default function Pricing() {
   const titleOpacity = useTransform(smoothProgress, [0.1, 0.3], [0, 1]);
   const titleY = useTransform(smoothProgress, [0.1, 0.3], [50, 0]);
 
+  const motionValues = pricingTiers.map((_, index) => ({
+    opacity: useTransform(
+      smoothProgress,
+      [0.3 + index * 0.1, 0.5 + index * 0.1],
+      [0, 1]
+    ),
+    y: useTransform(
+      smoothProgress,
+      [0.3 + index * 0.1, 0.5 + index * 0.1],
+      [50, 0]
+    ),
+  }));
+
   return (
     <section
       ref={containerRef}
@@ -85,18 +98,7 @@ export default function Pricing() {
                   "bg-white rounded-lg shadow-lg p-8",
                   tier.popular && "border-2 border-[#00313A] md:scale-105"
                 )}
-                style={{
-                  opacity: useTransform(
-                    smoothProgress,
-                    [0.3 + index * 0.1, 0.5 + index * 0.1],
-                    [0, 1]
-                  ),
-                  y: useTransform(
-                    smoothProgress,
-                    [0.3 + index * 0.1, 0.5 + index * 0.1],
-                    [50, 0]
-                  ),
-                }}
+                style={motionValues[index]}
               >
                 <h3 className="text-2xl font-bold text-[#00313A] mb-4">
                   {tier.title}
