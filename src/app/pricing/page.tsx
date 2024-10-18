@@ -5,6 +5,8 @@ import Header from '@/b2cSections/Header';
 import { Footer } from '@/b2bSections/Footer';
 import { Switch } from '@/components/ui/switch';
 import { CheckIcon, XIcon } from 'lucide-react';
+import { motion, useTransform } from 'framer-motion';
+import { twMerge } from 'tailwind-merge';
 
 type PlanFeatures = {
   [key: string]: boolean | string;
@@ -16,8 +18,12 @@ interface Plan {
   features: PlanFeatures;
 }
 
+import { useScroll } from 'framer-motion';
+
 const PricingPage = () => {
   const [isTeamView, setIsTeamView] = useState(false);
+  const { scrollYProgress } = useScroll();
+  const smoothProgress = useTransform(scrollYProgress, [0, 1], [0, 1]);
 
   type PlanFeatures = {
     [key: string]: boolean | string;
@@ -138,7 +144,25 @@ const PricingPage = () => {
 
         <div className="grid md:grid-cols-2 gap-8 max-w-5xl mx-auto">
           {currentPlans.map((plan, index) => (
-            <div key={index} className="bg-white rounded-lg shadow-lg overflow-hidden">
+            <motion.div
+              key={index}
+              className={twMerge(
+                "bg-white rounded-lg shadow-lg p-8",
+                plan.title === "Teams" && "border-2 border-[#00313A] md:scale-105"
+              )}
+              style={{
+                opacity: useTransform(
+                  smoothProgress,
+                  [0.3 + index * 0.1, 0.5 + index * 0.1],
+                  [0, 1]
+                ),
+                y: useTransform(
+                  smoothProgress,
+                  [0.3 + index * 0.1, 0.5 + index * 0.1],
+                  [50, 0]
+                ),
+              }}
+            >
               <div className="p-8 bg-[#00313A] text-white">
                 <h2 className="text-3xl font-bold mb-2">{plan.title}</h2>
                 <div className="text-4xl font-bold">
@@ -162,7 +186,7 @@ const PricingPage = () => {
                   Choose Plan
                 </a>
               </div>
-            </div>
+            </motion.div>
           ))}
         </div>
 

@@ -1010,14 +1010,14 @@ export default function Dashboard() {
       const { event, start, end } = args;
       updateTaskAndEvent(event.id, start, end, event.allDay);
     },
-    [updateTaskAndEvent],
+    [updateTaskAndEvent]
   );
 
   const onEventDrop = useCallback(
     ({ event, start, end }: { event: Event; start: Date; end: Date }) => {
       updateTaskAndEvent(event.id, start, end, event.allDay);
     },
-    [updateTaskAndEvent],
+    [updateTaskAndEvent]
   );
 
   const handleSelectEvent = useCallback(
