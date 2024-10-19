@@ -1,8 +1,12 @@
 "use client";
 import { useKindeBrowserClient } from "@kinde-oss/kinde-auth-nextjs";
 import { trpc } from "@/app/_trpc/client";
+import { autoScheduleTask } from "@/app/langchain/autoScheduler";
+import * as chrono from "chrono-node";
+import {removeStopwords} from "stopword"
+import WeeklySummary from './WeeklySummary';
 
-import React, { useState, useCallback, useEffect, SyntheticEvent } from "react";
+import React, { useState, useCallback, useEffect, SyntheticEvent, useRef, useMemo } from "react";
 import { Calendar, momentLocalizer, Views, View } from "react-big-calendar";
 import withDragAndDrop, {
   EventInteractionArgs,
@@ -41,17 +45,18 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import "react-big-calendar/lib/css/react-big-calendar.css";
+import { generateWeeklySummary } from '@/app/langchain/weeklySummary';
+import { estimateTaskTime } from "@/app/langchain/taskEstimator";
 
 const localizer = momentLocalizer(moment);
 
 interface Task {
   id: string;
   content: string;
-  // priority: number | null
-  dueDate: Date | null | undefined;
+  dueDate: Date | null;
   estimatedTime: number;
-  scheduledTime: { start: Date; end: Date } | null | undefined;
-  actualTime: number | null | undefined;
+  scheduledTime: { start: Date; end: Date } | null;
+  actualTime: number | null;
   allDay?: boolean;
 }
 
@@ -240,12 +245,14 @@ const TaskComponent = ({
   onView,
   onDelete,
   selectedDate,
+  isSelected,
 }: {
   task: Task;
   onSchedule: (task: Task) => void;
   onView: (task: Task) => void;
   onDelete: (taskId: string) => void;
   selectedDate: Date;
+  isSelected: boolean;
 }) => {
   const isScheduled = !!task.scheduledTime;
   const isDueToday =
@@ -264,7 +271,7 @@ const TaskComponent = ({
   const showActualTime = isScheduledToday || !isDueToday;
 
   return (
-    <Card className={`mb-2 ${getBackgroundColor()}`}>
+    <Card className={`mb-2 ${getBackgroundColor()} ${isSelected ? 'ring-2 ring-blue-500' : ''}`}>
       <CardContent className="p-4">
         <div className="flex justify-between items-start">
           <div className="flex-grow">
@@ -472,6 +479,7 @@ interface TaskViewEditModalProps {
   onClose: () => void;
   task: Task | null;
   onUpdate: (taskId: string, updatedInfo: Partial<Task>) => void;
+  initialEditMode?: boolean;
 }
 
 const TaskViewEditModal: React.FC<TaskViewEditModalProps> = ({
@@ -479,8 +487,9 @@ const TaskViewEditModal: React.FC<TaskViewEditModalProps> = ({
   onClose,
   task,
   onUpdate,
+  initialEditMode = false
 }) => {
-  const [isEditing, setIsEditing] = useState(false);
+  const [isEditing, setIsEditing] = useState(initialEditMode);
   const [content, setContent] = useState("");
   const [estimatedTime, setEstimatedTime] = useState(0);
   const [dueDate, setDueDate] = useState("");
@@ -500,6 +509,10 @@ const TaskViewEditModal: React.FC<TaskViewEditModalProps> = ({
       }
     }
   }, [task]);
+
+  useEffect(() => {
+    setIsEditing(initialEditMode);
+  }, [initialEditMode, isOpen]);
 
   const handleUpdate = () => {
     const updatedTask: Partial<Task> = {
@@ -679,9 +692,7 @@ export default function Dashboard() {
   const [isViewEditModalOpen, setIsViewEditModalOpen] = useState(false);
   const [activeView, setActiveView] = useState("dashboard");
   const [selectedDate, setSelectedDate] = useState(new Date());
-  const [currentWeekStart, setCurrentWeekStart] = useState(
-    moment().startOf("week").toDate(),
-  );
+  const [currentWeekStart, setCurrentWeekStart] = useState(moment().startOf('week').toDate());
   const [currentMonthStart, setCurrentMonthStart] = useState(
     moment().startOf("month").toDate(),
   );
@@ -689,6 +700,7 @@ export default function Dashboard() {
   const { user, getUser } = useKindeBrowserClient();
   const userDetails = getUser();
   const userId = userDetails?.given_name;
+  const [weeklySummary, setWeeklySummary] = useState<string>('');
 
   const router = useRouter();
 
@@ -696,6 +708,48 @@ export default function Dashboard() {
   const createTaskMutation = trpc.createTask.useMutation();
   const updateTaskMutation = trpc.updateTask.useMutation();
   const deleteTaskMutation = trpc.deleteTask.useMutation();
+
+  const inputRef = useRef<HTMLInputElement>(null);
+  const calendarRef = useRef<HTMLDivElement>(null);
+  const [selectedTaskIndex, setSelectedTaskIndex] = useState<number | null>(null);
+  const getFilteredTasks = () => {
+    if (taskListView === "daily") {
+      const dueDate = moment(selectedDate).startOf("day");
+      const dueTasks = tasks.filter(
+        (task) => task.dueDate && moment(task.dueDate).isSame(dueDate, "day"),
+      );
+      const scheduledTasks = tasks.filter(
+        (task) =>
+          task.scheduledTime &&
+          moment(task.scheduledTime.start).isSame(dueDate, "day"),
+      );
+
+      return [...new Set([...dueTasks, ...scheduledTasks])];
+    } else {
+      const weekStart = moment(selectedDate).startOf("week");
+      const weekEnd = moment(selectedDate).endOf("week");
+      const weekTasks = tasks.filter(
+        (task) =>
+          (task.dueDate &&
+            moment(task.dueDate).isBetween(weekStart, weekEnd, "day", "[]")) ||
+          (task.scheduledTime &&
+            moment(task.scheduledTime.start).isBetween(
+              weekStart,
+              weekEnd,
+              "day",
+              "[]",
+            )),
+      );
+
+      return weekTasks.sort((a, b) => {
+        const dateA =
+          a.dueDate || (a.scheduledTime && a.scheduledTime.start) || new Date();
+        const dateB =
+          b.dueDate || (b.scheduledTime && b.scheduledTime.start) || new Date();
+        return moment(dateA).diff(moment(dateB));
+      });
+    }
+  };
 
   const updateTaskAndEvent = useCallback(async (
     taskId: string,
@@ -709,6 +763,72 @@ export default function Dashboard() {
     });
     refetchTasks();
   }, [updateTaskMutation, refetchTasks]);
+
+  const filteredTasks = useMemo(() => getFilteredTasks(), [tasks, selectedDate, taskListView]);
+
+  const handleTaskSelect = useCallback((task: Task) => {
+    setSelectedTask(task);
+    setIsViewEditModalOpen(true);
+  }, []);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      // Check if the input field is focused
+      if (document.activeElement === inputRef.current) {
+        if (event.key === 'Tab') {
+          event.preventDefault(); // Prevent default tab behavior
+          inputRef.current?.blur(); // Remove focus from input
+          calendarRef.current?.focus(); // Focus the calendar container
+          setSelectedTaskIndex(null); // Reset task selection
+          return;
+        }
+        if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+          event.preventDefault(); // Prevent default arrow key behavior
+          setSelectedTaskIndex((prevIndex) => {
+            if (prevIndex === null) return event.key === 'ArrowUp' ? filteredTasks.length - 1 : 0;
+            if (event.key === 'ArrowUp') return (prevIndex - 1 + filteredTasks.length) % filteredTasks.length;
+            return (prevIndex + 1) % filteredTasks.length;
+          });
+          return;
+        }
+        if (event.key === 'Enter' && selectedTaskIndex !== null) {
+          event.preventDefault();
+          handleTaskSelect(filteredTasks[selectedTaskIndex]);
+          return;
+        }
+        return; // Exit the function if the input is focused (for other keys)
+      }
+
+      // Reset task selection when focus is not on the input
+      setSelectedTaskIndex(null);
+
+      switch (event.key) {
+        case 'ArrowLeft':
+          setSelectedDate(prevDate => moment(prevDate).subtract(1, 'day').toDate());
+          break;
+        case 'ArrowRight':
+          setSelectedDate(prevDate => moment(prevDate).add(1, 'day').toDate());
+          break;
+        case 'ArrowUp':
+          setSelectedDate(prevDate => moment(prevDate).subtract(7, 'days').toDate());
+          break;
+        case 'ArrowDown':
+          setSelectedDate(prevDate => moment(prevDate).add(7, 'days').toDate());
+          break;
+        case 'Enter':
+          // Focus the input field when Enter is pressed
+          inputRef.current?.focus();
+          break;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+
+    // Cleanup function to remove the event listener
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [filteredTasks, selectedTaskIndex, handleTaskSelect]); // Add dependencies
 
   useEffect(() => {
     if (tasksData) {
@@ -839,45 +959,89 @@ export default function Dashboard() {
     refetchTasks();
   };
 
-  const addTask = async (
-    e: React.FormEvent<HTMLFormElement> | React.MouseEvent<HTMLButtonElement>,
-  ) => {
+  const addTask = async (e: React.FormEvent<HTMLFormElement> | React.MouseEvent<HTMLButtonElement>) => {
     e.preventDefault();
-    if (newTask.trim()) {
-      await createTaskMutation.mutateAsync({
-        content: newTask,
-        dueDate: selectedDate.toISOString(),
-        estimatedTime: 1, // Default to 1 hour
-        scheduledTime: undefined,
+    if (newTask.trim() === '') return;
+
+    // NLP parsing
+    const parsedResults = chrono.parse(newTask, selectedDate, {
+      forwardDate: true,
+    });
+
+    // Removing stop words from the task name
+    const taskWords = newTask.split(" ");
+    const parsedIndex = parsedResults[0]?.index ?? newTask.length;
+    const oldTaskStrings = taskWords.slice(0, parsedIndex);
+    const newTaskString = removeStopwords(oldTaskStrings, [
+      "by", "BY", "By", "The", "the", "THE", "a", "A", "from", "From", "FROM",
+      "at", "AT", "At", "in", "IN", "In", "for", "For", "FOR", "to", "To", "TO",
+      "I", "i", "want", "Want", "WANT"
+    ]);
+    const taskContent = newTaskString.join(" ") || newTask;
+
+    const task: Omit<Task, 'id'> = {
+      content: taskContent,
+      dueDate: parsedResults[0]?.start.date() || selectedDate,
+      estimatedTime: 1, // Default value, you might want to adjust this
+      scheduledTime: null,
+      actualTime: null,
+    };
+
+    try {
+      const createdTask = await createTaskMutation.mutateAsync({
+        content: task.content,
+        estimatedTime: task.estimatedTime,
+        dueDate: task.dueDate?.toISOString() ?? selectedDate.toISOString(),
       });
-      setNewTask("");
+
+      const createdTaskWithDates: Task = {
+        ...createdTask,
+        dueDate: createdTask.dueDate ? new Date(createdTask.dueDate) : null,
+        scheduledTime: createdTask.scheduledTime ? {
+          start: new Date(createdTask.scheduledTime.start),
+          end: new Date(createdTask.scheduledTime.end)
+        } : null
+      };
+
+      setTasks(prevTasks => [...prevTasks, createdTaskWithDates]);
+      setNewTask('');
       refetchTasks();
+    } catch (error) {
+      console.error('Error creating task:', error);
     }
   };
 
   const handleScheduleTask = async (task: Task) => {
-    const availableSlot = findAvailableTimeSlot(
-      selectedDate,
-      task.estimatedTime,
-    );
+    const suggestedSlot = await autoScheduleTask(task, tasks, events, selectedDate);
 
-    if (availableSlot) {
-      const actualTime = calculateActualTime(
-        availableSlot.start,
-        availableSlot.end,
-      );
-      await updateTaskMutation.mutateAsync({
-        id: task.id,
-        scheduledTime: {
-          start: availableSlot.start.toISOString(),
-          end: availableSlot.end.toISOString(),
-        },
-        actualTime: actualTime,
-      });
-      refetchTasks();
+    if (suggestedSlot) {
+      const startTime = suggestedSlot.start;
+      const endTime = suggestedSlot.end;
+
+      const actualTime = calculateActualTime(startTime, endTime);
+      try {
+        await updateTaskMutation.mutateAsync({
+          id: task.id,
+          scheduledTime: {
+            start: startTime.toISOString(),
+            end: endTime.toISOString(),
+          },
+          actualTime: actualTime,
+        });
+        refetchTasks();
+        // Optionally, update the local state to reflect the change immediately
+        setTasks(prevTasks => prevTasks.map(t => 
+          t.id === task.id 
+            ? {...t, scheduledTime: { start: startTime, end: endTime }, actualTime: actualTime}
+            : t
+        ));
+      } catch (error) {
+      
+        console.error("Error updating task:", error);
+        alert("Failed to schedule the task. Please try again.");
+      }
     } else {
-      // Handle case when no slot is available
-      alert("No available time slot found for this task today.");
+      alert("No suitable time slot found for this task on the selected date. Please try scheduling it for another day or adjusting your schedule.");
     }
   };
 
@@ -915,10 +1079,7 @@ export default function Dashboard() {
     refetchTasks();
   };
 
-  const handleTaskUpdate = async (
-    taskId: string,
-    updatedInfo: Partial<Task>,
-  ) => {
+  const handleTaskUpdate = async (taskId: string, updatedInfo: Partial<Task>) => {
     const { dueDate, ...otherInfo } = updatedInfo;
 
     const updatedTask = {
@@ -946,46 +1107,10 @@ export default function Dashboard() {
       console.error("Error updating task:", error);
       // Handle error (e.g., show an error message to the user)
     }
+    setIsViewEditModalOpen(false);
   };
 
-  const getFilteredTasks = () => {
-    if (taskListView === "daily") {
-      const dueDate = moment(selectedDate).startOf("day");
-      const dueTasks = tasks.filter(
-        (task) => task.dueDate && moment(task.dueDate).isSame(dueDate, "day"),
-      );
-      const scheduledTasks = tasks.filter(
-        (task) =>
-          task.scheduledTime &&
-          moment(task.scheduledTime.start).isSame(dueDate, "day"),
-      );
-
-      return [...new Set([...dueTasks, ...scheduledTasks])];
-    } else {
-      const weekStart = moment(selectedDate).startOf("week");
-      const weekEnd = moment(selectedDate).endOf("week");
-      const weekTasks = tasks.filter(
-        (task) =>
-          (task.dueDate &&
-            moment(task.dueDate).isBetween(weekStart, weekEnd, "day", "[]")) ||
-          (task.scheduledTime &&
-            moment(task.scheduledTime.start).isBetween(
-              weekStart,
-              weekEnd,
-              "day",
-              "[]",
-            )),
-      );
-
-      return weekTasks.sort((a, b) => {
-        const dateA =
-          a.dueDate || (a.scheduledTime && a.scheduledTime.start) || new Date();
-        const dateB =
-          b.dueDate || (b.scheduledTime && b.scheduledTime.start) || new Date();
-        return moment(dateA).diff(moment(dateB));
-      });
-    }
-  };
+  
 
   const onEventResize = useCallback(
     (args: { event: Event; start: Date; end: Date }) => {
@@ -1013,12 +1138,16 @@ export default function Dashboard() {
     [tasks],
   );
 
-  const handleRangeChange = (range: Date[] | { start: Date; end: Date }) => {
+  const handleRangeChange = useCallback((range: Date[] | { start: Date; end: Date }) => {
     const startDate = Array.isArray(range) ? range[0] : range.start;
-    const newWeekStart = moment(startDate).startOf("week").toDate();
+    const newWeekStart = moment(startDate).startOf('week').toDate();
     setCurrentWeekStart(newWeekStart);
     setSelectedDate(moment(startDate).toDate());
-  };
+
+    if (taskListView === 'weekly') {
+      generateWeeklySummary(tasks, newWeekStart).then(setWeeklySummary);
+    }
+  }, [tasks, taskListView, generateWeeklySummary]);
 
   const handleNavigate = (
     newDate: Date,
@@ -1150,6 +1279,18 @@ export default function Dashboard() {
     [selectedDate, taskListView],
   );
 
+  useEffect(() => {
+    async function updateWeeklySummary() {
+      if (taskListView === 'weekly') {
+        setWeeklySummary("Generating weekly summary...");
+        const summary = await generateWeeklySummary(tasks, currentWeekStart);
+        setWeeklySummary(summary);
+      }
+    }
+
+    updateWeeklySummary();
+  }, [tasks, currentWeekStart, taskListView, generateWeeklySummary]);
+
   return (
     <div className="flex h-screen bg-white">
       <aside className="w-16 bg-gray-800 text-white flex flex-col justify-between py-4">
@@ -1198,67 +1339,38 @@ export default function Dashboard() {
               onSelectDate={setSelectedDate}
               view={taskListView}
             />
-            <form onSubmit={addTask} className="mb-4">
-              <Input
-                type="text"
-                value={newTask}
-                onChange={(e) => setNewTask(e.target.value)}
-                placeholder="New task"
-                className="mb-2"
-              />
-              <Button type="submit">Add Task</Button>
-            </form>
-            {/* <div>
-              {getFilteredTasks().map((task) => (
-                <Card key={task.id} className="mb-2">
-                  <CardContent className="p-4">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <p className="font-medium">{task.content}</p>
-                        <div className="flex flex-wrap gap-2 mt-2">
-                          {task.dueDate && (
-                            <Badge variant="outline">
-                              Due: {moment(task.dueDate).format("MMM D")}
-                            </Badge>
-                          )}
-                          <Badge>Est: {task.estimatedTime}m</Badge>
-                          {task.actualTime && (
-                            <Badge variant="secondary">
-                              Actual: {task.actualTime}m
-                            </Badge>
-                          )}
-                        </div>
-                        {task.scheduledTime && (
-                          <div className="mt-2 text-sm text-muted-foreground flex items-center">
-                            <ClockIcon className="w-4 h-4 mr-1" />
-                            Scheduled: {moment(task.scheduledTime.start).format("MMM D, h:mm A")}
-                          </div>
-                        )}
-                      </div>
-                      <div className="flex space-x-2">
-                        <Button variant="outline" size="sm" onClick={() => handleViewTask(task)}>View</Button>
-                        <Button variant="outline" size="sm" onClick={() => handleDeleteTask(task.id)}>Delete</Button>
-                        <Button variant="ghost" className="text-red-500 hover:text-red-700" aria-label="Delete task"size="icon" onClick={() => handleScheduleTask(task)}><Trash className="h-4 w-4" /></Button>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div> */}
-            {getFilteredTasks().map((task) => (
-              <TaskComponent
-                key={task.id}
-                task={task}
-                onSchedule={handleScheduleTask}
-                onView={handleViewTask}
-                onDelete={handleDeleteTask}
-                selectedDate={selectedDate}
-              />
-            ))}
+            {taskListView === 'weekly' ? (
+              <WeeklySummary summary={weeklySummary} />
+            ) : (
+              <>
+                <form onSubmit={addTask} className="mb-4">
+                  <Input
+                    type="text"
+                    value={newTask}
+                    onChange={(e) => setNewTask(e.target.value)}
+                    placeholder="Type out your tasks here..."
+                    className="mb-2"
+                    ref={inputRef}
+                  />
+                  <Button type="submit">Add Task</Button>
+                </form>
+                {filteredTasks.map((task, index) => (
+                  <TaskComponent
+                    key={task.id}
+                    task={task}
+                    onSchedule={handleScheduleTask}
+                    onView={handleViewTask}
+                    onDelete={handleDeleteTask}
+                    selectedDate={selectedDate}
+                    isSelected={index === selectedTaskIndex}
+                  />
+                ))}
+              </>
+            )}
           </div>
         </div>
-        <div className="flex-1 p-6 overflow-hidden">
-          <h1 className="text-3xl font-bold mb-6">Welcome, Shiven</h1>
+        <div className="flex-1 p-6 overflow-hidden" ref={calendarRef} tabIndex={0}>
+          <h1 className="text-3xl font-bold mb-6">Welcome, {userId}</h1>
           <DragAndDropCalendar
             localizer={localizer}
             events={events}
@@ -1311,10 +1423,12 @@ export default function Dashboard() {
       />
       <TaskViewEditModal
         isOpen={isViewEditModalOpen}
-        onClose={handleCloseViewEditModal}
+        onClose={() => setIsViewEditModalOpen(false)}
         task={selectedTask}
         onUpdate={handleTaskUpdate}
+        initialEditMode={true}
       />
     </div>
   );
 }
+
