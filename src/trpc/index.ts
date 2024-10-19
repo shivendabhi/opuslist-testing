@@ -63,22 +63,31 @@ export const appRouter = router({
 
       if (!user.id) throw new TRPCError({ code: 'UNAUTHORIZED' })
 
-      const task = await db.task.create({
-        data: {
-          content: input.content,
-          dueDate: input.dueDate,
-          estimatedTime: input.estimatedTime,
-          userId: user.id,
-          scheduledTime: input.scheduledTime ? {
-            create: input.scheduledTime
-          } : undefined
-        },
-        include: {
-          scheduledTime: true
-        }
-      })
+      try {
+        const task = await db.task.create({
+          data: {
+            content: input.content,
+            dueDate: input.dueDate,
+            estimatedTime: input.estimatedTime,
+            userId: user.id,
+            scheduledTime: input.scheduledTime ? {
+              create: input.scheduledTime
+            } : undefined
+          },
+          include: {
+            scheduledTime: true
+          }
+        })
 
-      return task
+        return task
+      } catch (error) {
+        console.error("Error creating task:", error)
+        throw new TRPCError({ 
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'Failed to create task',
+          cause: error
+        })
+      }
     }),
 
   updateTask: publicProcedure
