@@ -10,9 +10,15 @@ if (process.env.NODE_ENV === 'production') {
   prisma = new PrismaClient()
 } else {
   if (!global.cachedPrisma) {
-    global.cachedPrisma = new PrismaClient()
+    global.cachedPrisma = new PrismaClient({
+      log: ['query', 'error', 'warn'],
+    })
   }
   prisma = global.cachedPrisma
 }
+
+prisma.$connect()
+  .then(() => console.log('Connected to the database'))
+  .catch((error) => console.error('Failed to connect to the database:', error))
 
 export const db = prisma
