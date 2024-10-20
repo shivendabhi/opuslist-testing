@@ -95,6 +95,39 @@
 .rbc-event .rbc-resizable {
   cursor: ns-resize;
 }
+.rbc-event-content {
+  cursor: grab;
+}
+.rbc-event .rbc-resizable {
+  cursor: ns-resize;
+}
+.rbc-event-content::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 5px;
+  background-color: rgba(0, 0, 0, 0.1);
+  cursor: ns-resize;
+}
+.resize-handle {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background-color: rgba(0, 0, 0, 0);
+  cursor: ns-resize;
+}
+
+.resize-handle.active {
+  background-color: rgba(0, 0, 0, 0.3);
+}
+
+.rbc-event-content {
+  height: 100%;
+}
 }
 
 @layer base {

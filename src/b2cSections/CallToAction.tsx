@@ -13,9 +13,9 @@ export default function CallToAction() {
             productivity with OpusList.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <a href="/api/auth/register?">
+            <a href="https://airtable.com/appvtWDhbKDDRZ7TE/pagtxfT0t3i2nOu4H/form">
               <button className="bg-white text-[#00313A] px-6 py-3 rounded-lg font-medium hover:bg-[#F0F4F5] transition-colors">
-                Start Free Trial
+                Get Early Access
               </button>
             </a>
             <button className="flex items-center justify-center gap-2 text-white/80 hover:text-white transition-colors">

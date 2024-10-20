@@ -73,6 +73,9 @@ export async function autoScheduleTask(
 
   // Find available time slots
   const availableSlots = findAvailableTimeSlots(allScheduledItems, selectedDate);
+  const formattedAvailableSlots = availableSlots.map(slot => 
+    `${moment(slot.start).format('YYYY-MM-DD HH:mm')} - ${moment(slot.end).format('YYYY-MM-DD HH:mm')}`
+  ).join('\n');
 
   const template = `
 You are an AI task scheduler with extreme precision and attention to detail. Your primary goal is to schedule tasks efficiently while strictly adhering to all given constraints and user preferences. Analyze the following information and suggest the optimal time slot for scheduling a new task:
@@ -98,6 +101,7 @@ Scheduling Rules:
 6. Consider the nature of the task and when it might best fit into the day.
 7. Allow for short breaks (5-15 minutes) between tasks when possible.
 8. If the task can't be scheduled on the current date, explicitly state this and suggest the next possible date.
+9. If the entire day is available (00:00 - 23:59), schedule the task at an appropriate time considering its nature and estimated duration.
 
 Provide your response in the following format:
 Start Time: YYYY-MM-DD HH:mm
@@ -131,7 +135,7 @@ Remember, accuracy and adherence to the provided slots and rules are crucial. Do
     estimatedTime: taskToSchedule.estimatedTime,
     dueDate: formattedDueDate,
     existingTasksAndEvents: existingTasksAndEvents,
-    availableSlots: availableSlots.map(slot => `${moment(slot.start).format('YYYY-MM-DD HH:mm')} - ${moment(slot.end).format('YYYY-MM-DD HH:mm')}`).join('\n'),
+    availableSlots: formattedAvailableSlots,
     selectedDate: moment(selectedDate).format('YYYY-MM-DD'),
   });
 
@@ -171,6 +175,14 @@ Remember, accuracy and adherence to the provided slots and rules are crucial. Do
 function findAvailableTimeSlots(scheduledItems: (Task | Event)[], selectedDate: Date): { start: Date; end: Date }[] {
   const startOfDay = moment(selectedDate).startOf('day');
   const endOfDay = moment(selectedDate).endOf('day');
+
+  if (scheduledItems.length === 0) {
+    // If there are no scheduled items, return the entire day as available
+    return [{
+      start: startOfDay.toDate(),
+      end: endOfDay.toDate()
+    }];
+  }
 
   const availableSlots = [];
   let currentTime = startOfDay.toDate();

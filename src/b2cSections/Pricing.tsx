@@ -9,8 +9,8 @@ const pricingTiers = [
   {
     title: "Free",
     monthlyPrice: 0,
-    buttonText: "Get Started",
-    buttonLink: "/api/auth/register?",
+    buttonText: "Request Access",
+    buttonLink: "https://airtable.com/appvtWDhbKDDRZ7TE/pagtxfT0t3i2nOu4H/form",
     popular: true,
     features: [
       "Basic task management",

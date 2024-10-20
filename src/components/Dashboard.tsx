@@ -2,6 +2,7 @@
 import { useKindeBrowserClient } from "@kinde-oss/kinde-auth-nextjs";
 import { trpc } from "@/app/_trpc/client";
 import { autoScheduleTask } from "@/app/langchain/autoScheduler";
+
 import * as chrono from "chrono-node";
 import {removeStopwords} from "stopword"
 import WeeklySummary from './WeeklySummary';
@@ -46,7 +47,7 @@ import {
 } from "@/components/ui/tooltip";
 import "react-big-calendar/lib/css/react-big-calendar.css";
 import { generateWeeklySummary } from '@/app/langchain/weeklySummary';
-import { estimateTaskTime } from "@/app/langchain/taskEstimator";
+import { estimateTaskTime as estimateTaskTimeAPI } from '@/app/langchain/taskEstimator';
 
 const localizer = momentLocalizer(moment);
 
@@ -58,6 +59,11 @@ interface Task {
   scheduledTime: { start: Date; end: Date } | null;
   actualTime: number | null;
   allDay?: boolean;
+}
+
+interface DayContext {
+  date: Date;
+  tasks: Task[];
 }
 
 interface DashboardProps {
@@ -343,6 +349,7 @@ interface Event {
   start: Date;
   end: Date;
   allDay: boolean;
+  isResizing?: boolean;
 }
 
 import { EventProps } from "react-big-calendar";
@@ -701,6 +708,7 @@ export default function Dashboard() {
   const userDetails = getUser();
   const userId = userDetails?.given_name;
   const [weeklySummary, setWeeklySummary] = useState<string>('');
+  const [tasksBeingEstimated, setTasksBeingEstimated] = useState<Set<string>>(new Set());
 
   const router = useRouter();
 
@@ -895,8 +903,9 @@ export default function Dashboard() {
     return null; // No available slot found
   };
   const moveEvent = useCallback(
-    ({ event, start, end, isAllDay: droppedOnAllDaySlot }: EventInteractionArgs<Event>) => {
-      const { allDay } = event;
+    ({ event, start, end, isAllDay: droppedOnAllDaySlot = false }: EventInteractionArgs<object>) => {
+      const typedEvent = event as Event;
+      const { allDay } = typedEvent;
       let updatedAllDay = allDay;
 
       if (!allDay && droppedOnAllDaySlot) {
@@ -906,37 +915,33 @@ export default function Dashboard() {
       }
 
       setEvents((prev) => {
-        const existing = prev.find((ev) => ev.id === event.id) ?? {
-          id: event.id,
-          title: event.title,
+        const existing = prev.find((ev) => ev.id === typedEvent.id) ?? {
+          id: typedEvent.id,
+          title: typedEvent.title,
           start,
           end,
           allDay: updatedAllDay,
         };
-        const filtered = prev.filter((ev) => ev.id !== event.id);
+        const filtered = prev.filter((ev) => ev.id !== typedEvent.id);
         return [...filtered, { ...existing, start, end, allDay: updatedAllDay } as Event];
       });
 
-      updateTaskAndEvent(event.id, new Date(start), new Date(end), updatedAllDay);
+      updateTaskAndEvent(typedEvent.id, new Date(start), new Date(end), updatedAllDay);
     },
     [setEvents, updateTaskAndEvent]
   );
 
   const resizeEvent = useCallback(
-    ({ event, start, end }: EventInteractionArgs<Event>) => {
+    ({ event, start, end }: EventInteractionArgs<object>) => {
+      const typedEvent = event as Event;
       setEvents((prev) => {
-        const existing = prev.find((ev) => ev.id === event.id) ?? {
-          id: event.id,
-          title: event.title,
-          start,
-          end,
-          allDay: event.allDay,
-        };
-        const filtered = prev.filter((ev) => ev.id !== event.id);
-        return [...filtered, { ...existing, start, end } as Event];
+        const existing = prev.find((ev) => ev.id === typedEvent.id);
+        if (!existing) return prev;
+        const filtered = prev.filter((ev) => ev.id !== typedEvent.id);
+        return [...filtered, { ...existing, start: new Date(start), end: new Date(end) }];
       });
 
-      updateTaskAndEvent(event.id, new Date(start), new Date(end), event.allDay);
+      updateTaskAndEvent(typedEvent.id, new Date(start), new Date(end), typedEvent.allDay);
     },
     [setEvents, updateTaskAndEvent]
   );
@@ -982,7 +987,7 @@ export default function Dashboard() {
     const task: Omit<Task, 'id'> = {
       content: taskContent,
       dueDate: parsedResults[0]?.start.date() || selectedDate,
-      estimatedTime: 1, // Default value, you might want to adjust this
+      estimatedTime: 1, // Default value, will be updated after estimation
       scheduledTime: null,
       actualTime: null,
     };
@@ -1006,8 +1011,39 @@ export default function Dashboard() {
       setTasks(prevTasks => [...prevTasks, createdTaskWithDates]);
       setNewTask('');
       refetchTasks();
+
+      // Start estimation process
+      setTasksBeingEstimated(prev => new Set(prev).add(createdTaskWithDates.id));
+      estimateAndUpdateTaskTime(createdTaskWithDates);
     } catch (error) {
       console.error('Error creating task:', error);
+    }
+  };
+
+  const estimateAndUpdateTaskTime = async (task: Task) => {
+    const dayContext: DayContext = {
+      date: task.dueDate || new Date(),
+      tasks: tasks.filter(t => t.dueDate && moment(t.dueDate).isSame(task.dueDate, 'day'))
+    };
+
+    try {
+      const estimatedTime = await estimateTaskTimeAPI(task.content, dayContext);
+      await updateTaskMutation.mutateAsync({
+        id: task.id,
+        estimatedTime: estimatedTime
+      });
+      // Update the local state as well
+      setTasks(prevTasks => prevTasks.map(t => 
+        t.id === task.id ? {...t, estimatedTime} : t
+      ));
+    } catch (error) {
+      console.error('Error estimating task time:', error);
+    } finally {
+      setTasksBeingEstimated(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(task.id);
+        return newSet;
+      });
     }
   };
 
@@ -1113,11 +1149,17 @@ export default function Dashboard() {
   
 
   const onEventResize = useCallback(
-    (args: { event: Event; start: Date; end: Date }) => {
-      const { event, start, end } = args;
-      updateTaskAndEvent(event.id, start, end, event.allDay);
+    ({ event, start, end }: { event: Event; start: Date; end: Date }) => {
+      setEvents((prev) => {
+        const existing = prev.find((ev) => ev.id === event.id);
+        if (!existing) return prev;
+        const filtered = prev.filter((ev) => ev.id !== event.id);
+        return [...filtered, { ...existing, start, end }];
+      });
+  
+      updateTaskAndEvent(event.id, new Date(start), new Date(end), event.allDay);
     },
-    [updateTaskAndEvent]
+    [setEvents, updateTaskAndEvent]
   );
 
   const onEventDrop = useCallback(
@@ -1128,14 +1170,15 @@ export default function Dashboard() {
   );
 
   const handleSelectEvent = useCallback(
-    (event: CalendarEvent, e: React.MouseEvent<HTMLElement>) => {
-      const task = tasks.find((t) => t.id === event.id);
+    (event: object, e: React.SyntheticEvent<HTMLElement>) => {
+      const calendarEvent = event as CalendarEvent;
+      const task = tasks.find((t) => t.id === calendarEvent.id);
       if (task) {
         setSelectedTask(task);
         setIsViewEditModalOpen(true);
       }
     },
-    [tasks],
+    [tasks]
   );
 
   const handleRangeChange = useCallback((range: Date[] | { start: Date; end: Date }) => {
@@ -1374,8 +1417,9 @@ export default function Dashboard() {
           <DragAndDropCalendar
             localizer={localizer}
             events={events}
-            startAccessor={(event) => (event as Event).start}
-            endAccessor={(event) => (event as Event).end}
+            onEventDrop={moveEvent}
+            resizable
+            onEventResize={resizeEvent}
             style={{ height: "calc(100vh - 150px)" }}
             views={[Views.WEEK, Views.MONTH]}
             view={taskListView === "weekly" ? Views.MONTH : Views.WEEK}
@@ -1387,15 +1431,12 @@ export default function Dashboard() {
             max={new Date(0, 0, 0, 23, 59, 59)}
             step={10}
             timeslots={6}
-            onEventResize={onEventResize as any}
-            onEventDrop={onEventDrop as any}
-            onSelectEvent={handleSelectEvent as any}
+            onSelectEvent={handleSelectEvent}
             onRangeChange={handleRangeChange}
             onNavigate={handleNavigate}
             onSelectSlot={handleSelectSlot}
             selectable={true}
             date={selectedDate}
-            resizable
             popup
             dayPropGetter={dayPropGetter}
             components={{

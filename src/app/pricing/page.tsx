@@ -157,13 +157,13 @@ const PricingPage = () => {
 
         <div className="grid md:grid-cols-2 gap-8 max-w-5xl mx-auto">
           {currentPlans.map((plan, index) => (
-            <motion.div
+            <div
               key={plan.title}
               className={twMerge(
                 "bg-white rounded-lg shadow-lg p-8",
                 plan.title === "Teams" && "border-2 border-[#00313A] md:scale-105"
               )}
-              style={motionValues[index]}
+              
             >
               <div className="p-8 bg-[#00313A] text-white">
                 <h2 className="text-3xl font-bold mb-2">{plan.title}</h2>
@@ -183,18 +183,18 @@ const PricingPage = () => {
                   </li>
                 ))}
               </ul>
-              <div className="p-8 bg-gray-100">
+              {/* <div className="p-8 bg-gray-100">
                 <a href="#" className="block w-full bg-[#00313A] text-white text-center py-3 rounded-lg font-medium hover:bg-[#2a606a] transition-colors">
                   Choose Plan
                 </a>
-              </div>
-            </motion.div>
+              </div> */}
+            </div>
           ))}
         </div>
 
         <div className="mt-16 text-center">
           <a href="https://airtable.com/appvtWDhbKDDRZ7TE/pagtxfT0t3i2nOu4H/form" className="bg-[#00313A] text-white px-8 py-4 rounded-lg font-medium text-lg hover:bg-[#2a606a] transition-colors">
-            Start Free Trial
+            Request Access
           </a>
         </div>
       </main>

@@ -58,8 +58,8 @@ export async function estimateTaskTime(newTask: string, dayContext: DayContext):
   });
 
   // Extract the estimated time from the result
-  const estimatedTimeMatch = result.text.match(/(\d+(\.\d+)?)/);
-  const estimatedTime = estimatedTimeMatch ? parseFloat(estimatedTimeMatch[0]) : null;
+  const estimatedTimeMatch = result.text.match(/Estimated time \(in hours\):\s*(\d+(\.\d+)?)/);
+  const estimatedTime = estimatedTimeMatch ? parseFloat(estimatedTimeMatch[1]) : null;
 
   if (estimatedTime === null || isNaN(estimatedTime)) {
     throw new Error("Failed to estimate task time");

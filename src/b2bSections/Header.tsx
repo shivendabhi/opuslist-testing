@@ -4,6 +4,7 @@ import ArrowRight from "@/assets/arrow-right.svg";
 import Logo from "@/assets/opuslistlogo.png";
 import Image from "next/image";
 import MenuIcon from "@/assets/menu.svg";
+import Link from "next/link";
 import {RegisterLink, LoginLink} from "@kinde-oss/kinde-auth-nextjs/components";
 import { Twitter, Linkedin, Instagram, YoutubeIcon } from 'lucide-react';
 
@@ -88,9 +89,9 @@ export const Header = () => {
                   </div>
                 </div>
                 <a href="https://calendly.com/opuslist/product-demo" className="text-[#00313A]/80 hover:text-[#00313A]">Book Demo</a>
-                <RegisterLink className="bg-[#00313A] text-white px-4 py-2 rounded-lg font-medium inline-flex align-items justify-center tracking-tight hover:bg-[#004A59] transition-colors">
-                  Get Started
-                </RegisterLink>
+                <Link href="https://airtable.com/appvtWDhbKDDRZ7TE/pagtxfT0t3i2nOu4H/form" className="bg-[#00313A] text-white px-4 py-2 rounded-lg font-medium inline-flex align-items justify-center tracking-tight hover:bg-[#004A59] transition-colors">
+                  Request Access
+                </Link>
               </nav>
             </div>
           </div>

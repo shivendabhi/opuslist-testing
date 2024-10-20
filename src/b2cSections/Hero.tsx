@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import { ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Image from 'next/image';
+import Link from 'next/link';
 import { RegisterLink } from "@kinde-oss/kinde-auth-nextjs/components";
 
 export default function Hero() {
@@ -53,9 +54,9 @@ export default function Hero() {
             transition={{ delay: 0.5, duration: 0.6 }}
             className="flex flex-col sm:flex-row gap-4 items-center mt-10"
           >
-            <RegisterLink className="bg-[#00313A] text-sm text-white px-6 py-2 rounded-md font-medium inline-flex align-items justify-center tracking-tight hover:bg-[#004A59] transition-colors">
-                  Start Free Trial
-            </RegisterLink>
+            <Link href="https://airtable.com/appvtWDhbKDDRZ7TE/pagtxfT0t3i2nOu4H/form" className="bg-[#00313A] text-sm text-white px-6 py-2 rounded-md font-medium inline-flex align-items justify-center tracking-tight hover:bg-[#004A59] transition-colors">
+                  Get Early Access
+            </Link>
             <Button variant="outline" className="text-[#00313A] hover:bg-[#00313A]/10 py- px-6">
               <a href="/about">Learn More</a>
             </Button>

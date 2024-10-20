@@ -90,10 +90,10 @@ const Header = () => {
                     </div>
                   </div>
                 </div>
-                <LoginLink className="text-[#00313A]/80 hover:text-[#00313A]">Log In</LoginLink>
-                <RegisterLink className="bg-[#00313A] text-white px-4 py-2 rounded-lg font-medium inline-flex align-items justify-center tracking-tight hover:bg-[#004A59] transition-colors">
-                  Sign Up Free
-                </RegisterLink>
+                <Link href="/beta-login" className="text-[#00313A]/80 hover:text-[#00313A]">Log In</Link>
+                <Link href="https://airtable.com/appvtWDhbKDDRZ7TE/pagtxfT0t3i2nOu4H/form" className="bg-[#00313A] text-white px-4 py-2 rounded-lg font-medium inline-flex align-items justify-center tracking-tight hover:bg-[#004A59] transition-colors">
+                  Request Access
+                </Link>
               </nav>
             </div>
           </div>
