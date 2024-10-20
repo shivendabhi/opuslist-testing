@@ -13,7 +13,7 @@ const BetaAccessPage = () => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (betaCode === 'opuslist_ftw') {
+    if (betaCode === 'controlyourtime') {
       router.push('/api/auth/register');
     } else {
       setError('Invalid beta code. Please try again.');
