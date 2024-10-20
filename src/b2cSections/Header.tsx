@@ -12,6 +12,7 @@ import Link from 'next/link';
 
 const Header = () => {
   const [isScrolled, setIsScrolled] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -35,6 +36,10 @@ const Header = () => {
         behavior: 'smooth'
       });
     }
+  };
+
+  const toggleMenu = () => {
+    setIsMenuOpen(!isMenuOpen);
   };
 
   return (
@@ -73,8 +78,10 @@ const Header = () => {
                   OpusList
                 </span>
               </Link>
-              <MenuIcon className="h-5 w-5 md:hidden" />
-              <nav className="hidden md:flex gap-6 text-[#00313A]/80 items-center">
+              <button onClick={toggleMenu} className="md:hidden">
+                <MenuIcon className="h-5 w-5" />
+              </button>
+              <nav className={`md:flex gap-6 text-[#00313A]/80 items-center ${isMenuOpen ? 'flex flex-col absolute top-full left-0 right-0 bg-white shadow-lg' : 'hidden'}`}>
                 <a href="#features" onClick={scrollToFeatures}>Features</a>
                 <a href="/pricing">Pricing</a>
                 <div className="relative group">
@@ -83,7 +90,7 @@ const Header = () => {
                     <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
                   </a>
                   <div className="absolute left-0 mt-2 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300">
-                  <div className="py-1" role="menu" aria-orientation="vertical" aria-labelledby="options-menu">
+                    <div className="py-1" role="menu" aria-orientation="vertical" aria-labelledby="options-menu">
                       <a href="/about" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" role="menuitem">About Us</a>
                       <a href="/changelog" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" role="menuitem">Changelog</a>
                       <a href="mailto:support@opuslist.ai" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" role="menuitem">Support</a>

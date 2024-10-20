@@ -10,6 +10,7 @@ import { Twitter, Linkedin, Instagram, YoutubeIcon } from 'lucide-react';
 
 export const Header = () => {
   const [isScrolled, setIsScrolled] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -33,6 +34,10 @@ export const Header = () => {
         behavior: 'smooth'
       });
     }
+  };
+
+  const toggleMenu = () => {
+    setIsMenuOpen(!isMenuOpen);
   };
 
   return (
@@ -71,8 +76,10 @@ export const Header = () => {
                   OpusList
                 </span>
               </div>
-              <MenuIcon className="h-5 w-5 md:hidden" />
-              <nav className="hidden md:flex gap-6 text-[#00313A]/80 items-center">
+              <button onClick={toggleMenu} className="md:hidden">
+                <MenuIcon className="h-5 w-5" />
+              </button>
+              <nav className={`md:flex gap-6 text-[#00313A]/80 items-center ${isMenuOpen ? 'flex flex-col absolute top-full left-0 right-0 bg-white shadow-lg' : 'hidden'}`}>
                 <a href="#features" onClick={scrollToFeatures}>Features</a>
                 <a href="/pricing">Pricing</a>
                 <div className="relative group">
