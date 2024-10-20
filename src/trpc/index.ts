@@ -12,18 +12,40 @@ export const appRouter = router({
     if (!user.id || !user.email)
       throw new TRPCError({ code: 'UNAUTHORIZED' })
 
-    const dbUser = await db.user.findFirst({
+    // First, try to find the user
+    let dbUser = await db.user.findFirst({
       where: {
         id: user.id,
       },
     })
+
     if (!dbUser) {
-      await db.user.create({
-        data: {
-          id: user.id,
-          email: user.email
+      // If user doesn't exist, create a new one
+      try {
+        dbUser = await db.user.create({
+          data: {
+            id: user.id,
+            email: user.email
+          }
+        })
+      } catch (error) {
+        if (error instanceof Error && 'code' in error && error.code === 'P2002') {
+          // If the user already exists, fetch the existing user
+          dbUser = await db.user.findUnique({
+            where: {
+              email: user.email
+            }
+          })
+          if (!dbUser) {
+            throw new TRPCError({ 
+              code: 'INTERNAL_SERVER_ERROR',
+              message: 'Failed to create or find user'
+            })
+          }
+        } else {
+          throw error
         }
-      })
+      }
     }
 
     return { success: true }

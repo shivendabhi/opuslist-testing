@@ -1,30 +1,36 @@
-import { db } from "@/db";
-import { getKindeServerSession } from "@kinde-oss/kinde-auth-nextjs/server";
-import { redirect } from "next/navigation"
-import Dashboard from "@/components/Dashboard"
+"use client";
 
-export default async function DashboardPage() {
-    const { getUser } = getKindeServerSession()
-    const user = await getUser()
-    
-    if (!user || !user.id) redirect('/auth-callback?origin=dashboard')
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { Loader2 } from 'lucide-react'
+import { useKindeBrowserClient } from "@kinde-oss/kinde-auth-nextjs";
+import Dashboard from "@/components/Dashboard";
 
-    try {
-        const dbUser = await db.user.findFirst({
-            where: {
-                id: user.id
-            }
-        })
+export default function DashboardPage() {
+    const router = useRouter();
+    const { user, isLoading } = useKindeBrowserClient();
 
-        if (!dbUser) {
-            redirect('/auth-callback?origin=dashboard')
+    useEffect(() => {
+        if (!isLoading && !user) {
+            router.push('/auth-callback?origin=dashboard');
         }
+    }, [user, isLoading, router]);
 
-        // Pass the user data to the Dashboard component
-        return <Dashboard />
-    } catch (error) {
-        console.error("Error fetching user data:", error)
-        // Handle the error appropriately, maybe show an error page
-        return <div>Error loading dashboard. Please try again later.</div>
+    if (isLoading) {
+        return <div className='w-full mt-24 flex justify-center'>
+        <div className='flex flex-col items-center gap-2'>
+          <Loader2 className='h-8 w-8 animate-spin text-zinc-800' />
+          <h3 className='font-semibold text-xl'>
+            Logging into your account...
+          </h3>
+          <p>You will be redirected automatically.</p>
+        </div>
+      </div>;
     }
+
+    if (!user) {
+        return null; // or a loading indicator
+    }
+
+    return <Dashboard />;
 }
